@@ -8,7 +8,9 @@
     "microphone",
     "activeTab",
     "scripting",
-    "storage"
+    "storage",
+    "contextMenus",
+    "tabs"
   ],
 
   "host_permissions": [

@@ -10,8 +10,19 @@
   let currentInput = null;
   let micButton = null;
 
-  // 火山引擎WebSocket配置
-  const VOLCANO_WS_URL = 'wss://openspeech.bytedance.com/ws/v1/stream';
+  // 语音识别模型配置
+  const MODEL_CONFIGS = {
+    volcano: {
+      name: '火山引擎语音识别',
+      defaultUrl: 'wss://openspeech.bytedance.com/ws/v1/stream',
+      authType: 'access_key'
+    },
+    custom: {
+      name: '自定义模型接口',
+      defaultUrl: '',
+      authType: 'custom'
+    }
+  };
 
   // 创建麦克风按钮
   function createMicButton() {
@@ -83,8 +94,14 @@
     try {
       // 获取API配置
       const config = await getApiConfig();
-      if (!config.apiKey || !config.apiSecret) {
-        alert('请先设置API密钥：点击扩展图标进行配置');
+
+      // 检查是否有可用的配置
+      const hasValidConfig = config.modelType === 'custom' ?
+        config.customApiUrl :
+        (config.apiKey || config.apiSecret || config.appId || config.accessToken);
+
+      if (!hasValidConfig) {
+        alert('请先配置API信息：点击扩展图标进行配置');
         return;
       }
 
@@ -166,9 +183,11 @@
   async function connectWebSocket(config) {
     return new Promise((resolve, reject) => {
       try {
-        // 生成认证参数（简化版，实际需要按火山引擎文档生成）
+        // 生成认证参数
         const authParams = generateAuthParams(config);
-        const wsUrl = `${VOLCANO_WS_URL}?${authParams}`;
+        const wsUrl = config.modelType === 'custom' ?
+          `${config.customApiUrl}?${authParams}` :
+          `${config.customApiUrl || MODEL_CONFIGS.volcano.defaultUrl}?${authParams}`;
 
         ws = new WebSocket(wsUrl);
 
@@ -196,14 +215,28 @@
     });
   }
 
-  // 生成认证参数（简化版）
+  // 生成认证参数（支持多种模型）
   function generateAuthParams(config) {
     const timestamp = Date.now();
     const nonce = Math.random().toString(36).substr(2, 9);
 
-    // 这里需要根据火山引擎文档实现完整的签名算法
-    // 暂时使用简化版本
-    return `access_key_id=${config.apiKey}&timestamp=${timestamp}&nonce=${nonce}`;
+    if (config.modelType === 'custom') {
+      // 自定义模型，使用APP ID和Access Token
+      const params = [];
+      if (config.appId) params.push(`app_id=${config.appId}`);
+      if (config.accessToken) params.push(`access_token=${config.accessToken}`);
+      params.push(`timestamp=${timestamp}`);
+      params.push(`nonce=${nonce}`);
+      return params.join('&');
+    } else {
+      // 火山引擎模型，使用Access Key
+      const params = [];
+      if (config.apiKey) params.push(`access_key_id=${config.apiKey}`);
+      if (config.apiSecret) params.push(`access_key_secret=${config.apiSecret}`);
+      params.push(`timestamp=${timestamp}`);
+      params.push(`nonce=${nonce}`);
+      return params.join('&');
+    }
   }
 
   // 处理识别结果
@@ -257,10 +290,22 @@
   // 获取API配置
   async function getApiConfig() {
     return new Promise((resolve) => {
-      chrome.storage.local.get(['apiKey', 'apiSecret'], (result) => {
+      chrome.storage.local.get([
+        'modelType', 'apiKey', 'apiSecret', 'customApiUrl',
+        'appId', 'accessToken'
+      ], (result) => {
+        const modelType = result.modelType || 'volcano';
+        const modelConfig = MODEL_CONFIGS[modelType];
+
         resolve({
+          modelType: modelType,
+          modelName: modelConfig.name,
           apiKey: result.apiKey || '',
-          apiSecret: result.apiSecret || ''
+          apiSecret: result.apiSecret || '',
+          customApiUrl: result.customApiUrl || modelConfig.defaultUrl,
+          appId: result.appId || '',
+          accessToken: result.accessToken || '',
+          authType: modelConfig.authType
         });
       });
     });

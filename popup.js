@@ -3,8 +3,13 @@
   'use strict';
 
   // DOM元素
+  const modelSelect = document.getElementById('modelSelect');
   const apiKeyInput = document.getElementById('apiKey');
   const apiSecretInput = document.getElementById('apiSecret');
+  const customApiUrlInput = document.getElementById('customApiUrl');
+  const appIdInput = document.getElementById('appId');
+  const accessTokenInput = document.getElementById('accessToken');
+  const customApiGroup = document.getElementById('customApiGroup');
   const configForm = document.getElementById('configForm');
   const clearBtn = document.getElementById('clearBtn');
   const saveBtn = document.getElementById('saveBtn');
@@ -18,6 +23,9 @@
 
   // 绑定事件
   function bindEvents() {
+    // 模型选择变化事件
+    modelSelect.addEventListener('change', handleModelChange);
+
     // 表单提交事件
     configForm.addEventListener('submit', handleSave);
 
@@ -27,6 +35,9 @@
     // 输入框变化事件
     apiKeyInput.addEventListener('input', hideStatus);
     apiSecretInput.addEventListener('input', hideStatus);
+    customApiUrlInput.addEventListener('input', hideStatus);
+    appIdInput.addEventListener('input', hideStatus);
+    accessTokenInput.addEventListener('input', hideStatus);
 
     // 防止表单默认提交
     configForm.addEventListener('keypress', function(e) {
@@ -37,14 +48,41 @@
     });
   }
 
+  // 处理模型选择变化
+  function handleModelChange() {
+    const selectedModel = modelSelect.value;
+    if (selectedModel === 'custom') {
+      customApiGroup.style.display = 'block';
+    } else {
+      customApiGroup.style.display = 'none';
+    }
+    hideStatus();
+  }
+
   // 加载配置
   function loadConfig() {
-    chrome.storage.local.get(['apiKey', 'apiSecret'], function(result) {
+    chrome.storage.local.get([
+      'modelType', 'apiKey', 'apiSecret', 'customApiUrl',
+      'appId', 'accessToken'
+    ], function(result) {
+      if (result.modelType) {
+        modelSelect.value = result.modelType;
+        handleModelChange(); // 更新UI显示
+      }
       if (result.apiKey) {
         apiKeyInput.value = result.apiKey;
       }
       if (result.apiSecret) {
         apiSecretInput.value = result.apiSecret;
+      }
+      if (result.customApiUrl) {
+        customApiUrlInput.value = result.customApiUrl;
+      }
+      if (result.appId) {
+        appIdInput.value = result.appId;
+      }
+      if (result.accessToken) {
+        accessTokenInput.value = result.accessToken;
       }
     });
   }
@@ -53,25 +91,44 @@
   function handleSave(e) {
     e.preventDefault();
 
+    const modelType = modelSelect.value;
     const apiKey = apiKeyInput.value.trim();
     const apiSecret = apiSecretInput.value.trim();
+    const customApiUrl = customApiUrlInput.value.trim();
+    const appId = appIdInput.value.trim();
+    const accessToken = accessTokenInput.value.trim();
 
-    // 验证输入
-    if (!apiKey || !apiSecret) {
-      showStatus('请填写完整的API密钥信息', 'error');
+    // 允许保存不完整的配置，但给出警告
+    if (!apiKey && !apiSecret && !appId && !accessToken && !customApiUrl) {
+      showStatus('请至少填写一项配置信息', 'error');
       return;
     }
 
-    // 验证格式（简单的格式检查）
-    if (apiKey.length < 10 || apiSecret.length < 10) {
-      showStatus('API密钥格式不正确，请检查输入', 'error');
+    // 自定义模型模式下，验证自定义接口地址
+    if (modelType === 'custom' && !customApiUrl) {
+      showStatus('自定义模型模式下必须输入接口地址', 'error');
+      return;
+    }
+
+    // 如果填写了信息，进行基本格式验证
+    if (apiKey && apiKey.length < 5) {
+      showStatus('API密钥格式太短，请检查输入', 'error');
+      return;
+    }
+
+    if (apiSecret && apiSecret.length < 5) {
+      showStatus('API密钥格式太短，请检查输入', 'error');
       return;
     }
 
     // 保存到本地存储
     const config = {
+      modelType: modelType,
       apiKey: apiKey,
       apiSecret: apiSecret,
+      customApiUrl: customApiUrl,
+      appId: appId,
+      accessToken: accessToken,
       updatedAt: new Date().toISOString()
     };
 
@@ -79,7 +136,13 @@
       if (chrome.runtime.lastError) {
         showStatus('保存失败：' + chrome.runtime.lastError.message, 'error');
       } else {
-        showStatus('配置保存成功！', 'success');
+        const filledFields = [apiKey, apiSecret, appId, accessToken, customApiUrl].filter(Boolean).length;
+        const message = filledFields === 0 ?
+          '配置已清空' :
+          filledFields < 2 ?
+          '配置保存成功！（注意：信息不完整，部分功能可能无法使用）' :
+          '配置保存成功！';
+        showStatus(message, 'success');
         console.log('API配置已保存');
       }
     });
@@ -88,12 +151,21 @@
   // 清除配置
   function handleClear() {
     if (confirm('确定要清除所有API配置吗？')) {
-      chrome.storage.local.remove(['apiKey', 'apiSecret'], function() {
+      chrome.storage.local.remove([
+        'modelType', 'apiKey', 'apiSecret', 'customApiUrl',
+        'appId', 'accessToken'
+      ], function() {
         if (chrome.runtime.lastError) {
           showStatus('清除失败：' + chrome.runtime.lastError.message, 'error');
         } else {
+          // 清空输入框
+          modelSelect.value = 'volcano';
           apiKeyInput.value = '';
           apiSecretInput.value = '';
+          customApiUrlInput.value = '';
+          appIdInput.value = '';
+          accessTokenInput.value = '';
+          customApiGroup.style.display = 'none';
           showStatus('配置已清除', 'success');
           console.log('API配置已清除');
         }

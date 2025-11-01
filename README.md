@@ -1,15 +1,17 @@
 # 🔊 语音输入助手
 
-一个基于Chrome扩展的语音输入工具，集成火山引擎实时语音识别API，为任意网页输入框提供语音输入功能。
+一个基于Chrome扩展的语音输入工具，支持多种国内语音识别API，为任意网页输入框提供语音输入功能。
 
 ## ✨ 功能特点
 
 - 🎯 **智能检测**: 自动检测网页中的输入框（input、textarea、contenteditable）
 - 🎤 **一键录音**: 点击麦克风图标即可开始语音输入
-- ⚡ **实时识别**: 集成火山引擎流式语音识别，实时转换语音为文字
+- ⚡ **实时识别**: 集成多种国内语音识别API，实时转换语音为文字
+- 🔧 **多模型支持**: 支持火山引擎、阿里云、腾讯云、百度智能云、科大讯飞、华为云等
 - 🔒 **安全存储**: API密钥本地加密存储，不会上传到任何服务器
 - 🌐 **全站支持**: 支持所有网站的输入框
 - 🎨 **美观界面**: 现代化的UI设计，支持深色模式
+- ⚙️ **灵活配置**: 支持自定义模型接口，可配置APP ID和Access Token
 
 ## 🚀 安装使用
 
@@ -34,16 +36,50 @@
 
 ### 4. 配置API密钥
 1. 点击浏览器工具栏上的扩展图标
-2. 在弹出的配置页面中输入您的火山引擎API密钥
-3. 点击"保存"按钮
+2. 选择您要使用的语音识别模型（火山引擎、阿里云、腾讯云等）
+3. 输入相应的API密钥信息：
+   - **火山引擎**: AccessKey ID 和 AccessKey Secret
+   - **自定义模型**: 接口地址、APP ID、Access Token
+4. 点击"保存"按钮
+
+#### 🔧 自定义模型配置示例
+如果您使用您提到的接口：
+- **接口地址**: `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel`
+- **APP ID**: `7547060066`
+- **Access Token**: `lIiI3tsagpi2Ynpm_qwbI1zPkKMctNZO`
 
 ## 🔑 获取API密钥
 
+### 火山引擎
 1. 访问 [火山引擎控制台](https://console.volcengine.com/)
 2. 注册/登录账号
 3. 进入"访问控制" -> "访问密钥"
 4. 创建新的AccessKey，获取AccessKey ID和AccessKey Secret
-5. 在扩展配置页面中输入这两个值
+
+### 阿里云
+1. 访问 [阿里云智能语音交互控制台](https://ai.aliyun.com/nls/)
+2. 注册/登录账号
+3. 创建项目，获取Appkey和AccessKey
+
+### 腾讯云
+1. 访问 [腾讯云语音识别控制台](https://console.cloud.tencent.com/asr)
+2. 注册/登录账号
+3. 获取SecretId和SecretKey
+
+### 百度智能云
+1. 访问 [百度智能云控制台](https://console.bce.baidu.com/ai/)
+2. 注册/登录账号
+3. 创建应用，获取API Key和Secret Key
+
+### 科大讯飞
+1. 访问 [科大讯飞开放平台](https://www.xfyun.cn/services/lfasr)
+2. 注册/登录账号
+3. 创建应用，获取APPID和APISecret
+
+### 华为云
+1. 访问 [华为云语音交互服务控制台](https://console.huaweicloud.com/sis/)
+2. 注册/登录账号
+3. 获取项目ID和认证信息
 
 ## 📖 使用说明
 

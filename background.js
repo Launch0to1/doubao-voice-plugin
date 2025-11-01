@@ -126,9 +126,12 @@ async function sendToContentScript(message) {
   }
 }
 
-// 导出函数供其他脚本使用
-window.backgroundUtils = {
-  checkPermissions,
-  getCurrentTab,
-  sendToContentScript
-};
+// Service Worker中不能使用window对象
+// 导出函数供其他脚本使用（通过chrome.runtime.getBackgroundPage()）
+if (typeof globalThis !== 'undefined') {
+  globalThis.backgroundUtils = {
+    checkPermissions,
+    getCurrentTab,
+    sendToContentScript
+  };
+}
