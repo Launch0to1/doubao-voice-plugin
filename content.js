@@ -105,16 +105,28 @@
         return;
       }
 
-      // 获取麦克风权限
-      audioStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          sampleRate: 16000,
-          sampleSize: 16,
-          echoCancellation: true,
-          noiseSuppression: true
+      // 获取麦克风权限（Manifest V3中需要通过用户交互触发）
+      try {
+        audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            sampleRate: 16000,
+            sampleSize: 16,
+            echoCancellation: true,
+            noiseSuppression: true
+          }
+        });
+      } catch (mediaError) {
+        if (mediaError.name === 'NotAllowedError') {
+          alert('需要麦克风权限才能使用语音输入功能。请在浏览器设置中允许麦克风访问。');
+          return;
+        } else if (mediaError.name === 'NotFoundError') {
+          alert('未找到麦克风设备，请检查设备连接。');
+          return;
+        } else {
+          throw mediaError;
         }
-      });
+      }
 
       // 更新UI状态
       isRecording = true;

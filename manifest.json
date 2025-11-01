@@ -5,7 +5,6 @@
   "description": "支持火山引擎流式语音识别的浏览器插件，为任意输入框提供语音输入功能",
 
   "permissions": [
-    "microphone",
     "activeTab",
     "scripting",
     "storage",
