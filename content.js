@@ -252,11 +252,20 @@
 
         if (config.modelType === 'custom') {
           wsUrl = config.customApiUrl;
+          // 确保自定义URL有正确的协议前缀
+          if (wsUrl && !wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) {
+            wsUrl = 'wss://' + wsUrl;
+          }
           endpointsToTry = [wsUrl];
         } else {
           // 如果配置了自定义URL，优先使用；否则使用默认端点列表
           if (config.customApiUrl && config.customApiUrl.trim() !== '') {
-            endpointsToTry = [config.customApiUrl, ...endpoints];
+            let customUrl = config.customApiUrl;
+            // 确保自定义URL有正确的协议前缀
+            if (!customUrl.startsWith('ws://') && !customUrl.startsWith('wss://')) {
+              customUrl = 'wss://' + customUrl;
+            }
+            endpointsToTry = [customUrl, ...endpoints];
           } else {
             endpointsToTry = endpoints;
           }
@@ -429,7 +438,28 @@
     const timestamp = Date.now();
     const nonce = Math.random().toString(36).substr(2, 9);
 
-    // 智能判断认证方式：如果提供了APP ID和Access Token，优先使用它们
+    // 智能判断认证方式：提供多种认证模式，优先尝试Access Key
+    console.log('认证配置检查:', {
+      hasAppId: !!config.appId,
+      hasAccessToken: !!config.accessToken,
+      hasApiKey: !!config.apiKey,
+      hasApiSecret: !!config.apiSecret
+    });
+
+    // 方法1: 优先尝试Access Key认证（传统方式）
+    if (config.apiKey || config.apiSecret) {
+      const params = [];
+      if (config.apiKey) params.push(`access_key_id=${config.apiKey}`);
+      if (config.apiSecret) params.push(`access_key_secret=${config.apiSecret}`);
+      params.push(`timestamp=${timestamp}`);
+      params.push(`nonce=${nonce}`);
+
+      console.log('使用Access Key认证模式（优先）');
+      console.log('生成的认证参数:', params.join('&'));
+      return params.join('&');
+    }
+
+    // 方法2: APP ID + Access Token
     if (config.appId || config.accessToken) {
       // 使用APP ID和Access Token模式（适用于您提到的接口）
       const params = [];
@@ -438,81 +468,108 @@
       params.push(`timestamp=${timestamp}`);
       params.push(`nonce=${nonce}`);
 
-      // 记录生成的参数用于调试
       console.log('使用APP ID + Access Token认证模式');
       console.log('生成的认证参数:', params.join('&'));
       return params.join('&');
-    } else if (config.apiKey || config.apiSecret) {
-      // 传统的Access Key模式
-      const params = [];
-      if (config.apiKey) params.push(`access_key_id=${config.apiKey}`);
-      if (config.apiSecret) params.push(`access_key_secret=${config.apiSecret}`);
-      params.push(`timestamp=${timestamp}`);
-      params.push(`nonce=${nonce}`);
-
-      // 记录生成的参数用于调试
-      console.log('使用Access Key认证模式');
-      console.log('生成的认证参数:', params.join('&'));
-      return params.join('&');
-    } else {
-      // 没有任何认证信息，只返回时间戳和随机数
-      const params = [];
-      params.push(`timestamp=${timestamp}`);
-      params.push(`nonce=${nonce}`);
-
-      console.log('使用基础认证参数（无密钥）');
-      console.log('生成的认证参数:', params.join('&'));
-      return params.join('&');
     }
+
+    // 方法3: 没有任何认证信息，只返回时间戳和随机数
+    const params = [];
+    params.push(`timestamp=${timestamp}`);
+    params.push(`nonce=${nonce}`);
+
+    console.log('使用基础认证参数（无密钥）');
+    console.log('生成的认证参数:', params.join('&'));
+    return params.join('&');
   }
 
   // 新增：发送完整的客户端请求（符合火山引擎新协议）
   function sendFullClientRequest(config) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-    // 构建符合火山引擎新协议的FullClientRequest
-    const fullClientRequest = {
-      app_id: config.appId,
-      user_id: 'chrome_extension_user',
-      request_id: generateRequestId(),
-      audio: {
-        format: 'opus',
-        rate: 16000,
-        bits: 16,
-        channel: 1,
-        language: 'zh-CN'
-      },
-      request: {
-        core_type: 'cn.sauc.sauc-streaming.v1',
-        ref_text: '',
-        res_text_format: 0,
-        add_punc: true,
-        vad_on: true,
-        vad_pause: 500,
-        vad_timeout: 2000,
-        max_silence: 2000,
-        max_sentence_silence: 2000,
-        result_type: 'single',
-        enable_chunk: true,
-        chunk_interval: 250,
-        enable_long_speech: true,
-        enable_intermediate_result: true,
-        enable_punctuation: true,
-        enable_word_info: false,
-        enable_semantic_smoothing: true,
-        vocabulary_id: '',
-        vocabulary_filter: 'default'
-      },
-      user: {
-        uid: 'chrome_extension_user',
-        device_id: 'chrome_extension'
-      }
-    };
-
-    console.log('发送FullClientRequest:', fullClientRequest);
-
-    // 将JSON转换为二进制格式发送
+    // 首先尝试简单的JSON消息（向后兼容）
     try {
+      const simpleRequest = {
+        type: 'start_request',
+        request_id: generateRequestId(),
+        app_id: config.appId,
+        access_token: config.accessToken,
+        audio: {
+          format: 'opus',
+          sample_rate: 16000,
+          channel_count: 1,
+          bits_per_sample: 16
+        },
+        request: {
+          enable_intermediate_result: true,
+          enable_punctuation: true,
+          enable_word_info: false,
+          enable_semantic_smoothing: true,
+          max_sentence_silence: 2000,
+          enable_chunk: true,
+          chunk_interval: 250,
+          enable_long_speech: true,
+          enable_vad: true,
+          vad_silence_time: 500
+        }
+      };
+
+      console.log('尝试发送简单JSON请求:', simpleRequest);
+      ws.send(JSON.stringify(simpleRequest));
+      console.log('简单JSON请求已发送');
+
+      // 启动心跳机制
+      startHeartbeat(config);
+      return;
+
+    } catch (error) {
+      console.error('发送简单JSON请求失败:', error);
+    }
+
+    // 如果简单JSON失败，尝试二进制格式
+    try {
+      // 构建符合火山引擎新协议的FullClientRequest
+      const fullClientRequest = {
+        app_id: config.appId,
+        user_id: 'chrome_extension_user',
+        request_id: generateRequestId(),
+        audio: {
+          format: 'opus',
+          rate: 16000,
+          bits: 16,
+          channel: 1,
+          language: 'zh-CN'
+        },
+        request: {
+          core_type: 'cn.sauc.sauc-streaming.v1',
+          ref_text: '',
+          res_text_format: 0,
+          add_punc: true,
+          vad_on: true,
+          vad_pause: 500,
+          vad_timeout: 2000,
+          max_silence: 2000,
+          max_sentence_silence: 2000,
+          result_type: 'single',
+          enable_chunk: true,
+          chunk_interval: 250,
+          enable_long_speech: true,
+          enable_intermediate_result: true,
+          enable_punctuation: true,
+          enable_word_info: false,
+          enable_semantic_smoothing: true,
+          vocabulary_id: '',
+          vocabulary_filter: 'default'
+        },
+        user: {
+          uid: 'chrome_extension_user',
+          device_id: 'chrome_extension'
+        }
+      };
+
+      console.log('发送FullClientRequest（二进制格式）:', fullClientRequest);
+
+      // 将JSON转换为二进制格式发送
       const jsonString = JSON.stringify(fullClientRequest);
       const encoder = new TextEncoder();
       const binaryData = encoder.encode(jsonString);
