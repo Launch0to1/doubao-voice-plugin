@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>配置检查工具</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .config-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .config-label {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 5px;
+        }
+        .config-value {
+            color: #6c757d;
+            word-break: break-all;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status-set { background: #d4edda; color: #155724; }
+        .status-empty { background: #f8d7da; color: #721c24; }
+        .status-warning { background: #fff3cd; color: #856404; }
+        .action-buttons {
+            margin-top: 20px;
+            text-align: center;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .suggestion {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e7f3ff;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .suggestion h3 {
+            margin-top: 0;
+            color: #0056b3;
+        }
+        .suggestion ul {
+            margin-bottom: 0;
+        }
+        .suggestion li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 语音输入助手配置检查</h1>
+
+        <div id="configDisplay">
+            <div class="config-item">
+                <div class="config-label">正在加载配置...</div>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button onclick="refreshConfig()">🔄 刷新配置</button>
+            <button onclick="testCurrentConfig()">🧪 测试当前配置</button>
+            <button onclick="openPopup()">⚙️ 打开配置页面</button>
+        </div>
+
+        <div id="suggestions" class="suggestion" style="display: none;">
+            <h3>💡 建议</h3>
+            <ul id="suggestionList"></ul>
+        </div>
+    </div>
+
+    <script>
+        // 检查是否在Chrome扩展环境中运行
+        if (typeof chrome === 'undefined' || !chrome.storage) {
+            document.getElementById('configDisplay').innerHTML = `
+                <div class="config-item" style="border-left-color: #dc3545;">
+                    <div class="config-label">❌ 环境检测失败</div>
+                    <div class="config-value">此页面需要在Chrome扩展环境中运行。请将此文件作为扩展的一部分加载，或在扩展的popup页面中打开。</div>
+                </div>`;
+        } else {
+            refreshConfig();
+        }
+
+        function refreshConfig() {
+            chrome.storage.local.get([
+                'modelType', 'apiKey', 'apiSecret', 'customApiUrl',
+                'appId', 'accessToken'
+            ], function(result) {
+                displayConfig(result);
+                generateSuggestions(result);
+            });
+        }
+
+        function displayConfig(config) {
+            const display = document.getElementById('configDisplay');
+            const modelType = config.modelType || 'volcano';
+            const modelName = modelType === 'custom' ? '自定义模型' : '火山引擎';
+
+            let html = `
+                <div class="config-item">
+                    <div class="config-label">模型类型${getStatusIcon(config.modelType)}</div>
+                    <div class="config-value">${modelName} (${modelType})</div>
+                </div>
+            `;
+
+            if (modelType === 'custom') {
+                html += `
+                    <div class="config-item">
+                        <div class="config-label">自定义接口地址${getStatusIcon(config.customApiUrl)}</div>
+                        <div class="config-value">${config.customApiUrl || '未设置'}</div>
+                    </div>
+                    <div class="config-item">
+                        <div class="config-label">APP ID${getStatusIcon(config.appId)}</div>
+                        <div class="config-value">${config.appId || '未设置'}</div>
+                    </div>
+                    <div class="config-item">
+                        <div class="config-label">Access Token${getStatusIcon(config.accessToken)}</div>
+                        <div class="config-value">${config.accessToken ? '已设置 (' + config.accessToken.substring(0, 10) + '...)' : '未设置'}</div>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="config-item">
+                        <div class="config-label">AccessKey ID${getStatusIcon(config.apiKey)}</div>
+                        <div class="config-value">${config.apiKey || '未设置'}</div>
+                    </div>
+                    <div class="config-item">
+                        <div class="config-label">AccessKey Secret${getStatusIcon(config.apiSecret)}</div>
+                        <div class="config-value">${config.apiSecret ? '已设置 (' + config.apiSecret.substring(0, 10) + '...)' : '未设置'}</div>
+                    </div>
+                `;
+            }
+
+            display.innerHTML = html;
+        }
+
+        function getStatusIcon(value) {
+            if (value && value.trim() !== '') {
+                return ' <span class="status status-set">已设置</span>';
+            } else {
+                return ' <span class="status status-empty">未设置</span>';
+            }
+        }
+
+        function generateSuggestions(config) {
+            const suggestions = [];
+            const modelType = config.modelType || 'volcano';
+
+            if (modelType === 'custom') {
+                if (!config.customApiUrl) {
+                    suggestions.push('请设置自定义接口地址');
+                }
+                if (!config.appId) {
+                    suggestions.push('建议设置APP ID（某些模型必需）');
+                }
+                if (!config.accessToken) {
+                    suggestions.push('建议设置Access Token（某些模型必需）');
+                }
+
+                // 如果有接口地址，检查格式
+                if (config.customApiUrl) {
+                    if (!config.customApiUrl.startsWith('ws://') && !config.customApiUrl.startsWith('wss://')) {
+                        suggestions.push('接口地址应该以 ws:// 或 wss:// 开头');
+                    }
+                    if (config.customApiUrl.includes(' ')) {
+                        suggestions.push('接口地址不应该包含空格');
+                    }
+                }
+            } else {
+                if (!config.apiKey) {
+                    suggestions.push('请设置AccessKey ID');
+                }
+                if (!config.apiSecret) {
+                    suggestions.push('请设置AccessKey Secret');
+                }
+            }
+
+            // 通用建议
+            if (suggestions.length === 0) {
+                suggestions.push('配置看起来不错！可以尝试使用语音输入功能。');
+                suggestions.push('点击"测试当前配置"按钮来验证连接是否正常。');
+            } else {
+                suggestions.push('请完善上述配置后保存，然后重新加载扩展。');
+                suggestions.push('可以点击"打开配置页面"按钮来修改配置。');
+            }
+
+            const suggestionDiv = document.getElementById('suggestions');
+            const suggestionList = document.getElementById('suggestionList');
+
+            if (suggestions.length > 0) {
+                suggestionList.innerHTML = suggestions.map(s => `<li>${s}</li>`).join('');
+                suggestionDiv.style.display = 'block';
+            } else {
+                suggestionDiv.style.display = 'none';
+            }
+        }
+
+        function testCurrentConfig() {
+            chrome.storage.local.get([
+                'modelType', 'apiKey', 'apiSecret', 'customApiUrl',
+                'appId', 'accessToken'
+            ], function(config) {
+                const modelType = config.modelType || 'volcano';
+
+                if (modelType === 'custom') {
+                    if (!config.customApiUrl) {
+                        alert('请先设置自定义接口地址');
+                        return;
+                    }
+
+                    const testUrl = config.customApiUrl;
+                    const authParams = [];
+                    if (config.appId) authParams.push(`app_id=${config.appId}`);
+                    if (config.accessToken) authParams.push(`access_token=${config.accessToken}`);
+                    authParams.push(`timestamp=${Date.now()}`);
+                    authParams.push(`nonce=${Math.random().toString(36).substr(2, 9)}`);
+
+                    const fullUrl = authParams.length > 0 ? `${testUrl}?${authParams.join('&')}` : testUrl;
+
+                    if (confirm(`将测试以下WebSocket连接：\n\n${fullUrl}\n\n点击确定开始测试。`)) {
+                        window.open(`debug_websocket.html?url=${encodeURIComponent(testUrl)}&params=${encodeURIComponent(authParams.join('&'))}`, '_blank');
+                    }
+                } else {
+                    alert('火山引擎模型测试功能开发中...');
+                }
+            });
+        }
+
+        function openPopup() {
+            chrome.runtime.sendMessage({action: 'openPopup'});
+            window.close();
+        }
+    </script>
+</body>
+</html>

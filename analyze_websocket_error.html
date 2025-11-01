@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket错误分析工具</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .error-analysis {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .error-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #dc3545;
+        }
+        .possible-cause {
+            background: #e7f3ff;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .solution {
+            background: #d4edda;
+            border: 1px solid #28a745;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .test-section {
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log-area {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+        .log-error { color: #dc3545; }
+        .log-success { color: #28a745; }
+        .log-info { color: #17a2b8; }
+        .log-warning { color: #ffc107; }
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-connected { background: #28a745; }
+        .status-disconnected { background: #dc3545; }
+        .status-testing { background: #ffc107; }
+        .code-block {
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 WebSocket连接错误分析工具</h1>
+
+        <div class="error-analysis">
+            <h2>📊 错误分析</h2>
+            <div id="errorAnalysis">
+                <div class="error-item">
+                    <strong>错误代码:</strong> 1006<br>
+                    <strong>错误类型:</strong> WebSocket连接异常关闭<br>
+                    <strong>发生时间:</strong> <span id="errorTime"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="possible-cause">
+            <h3>🔍 可能的原因分析</h3>
+            <div id="possibleCauses">
+                <h4>1. 认证参数问题</h4>
+                <p>错误代码1006通常表示连接被服务器拒绝或意外关闭。根据您的配置：</p>
+                <div class="code-block">
+URL: wss://openspeech.bytedance.com/api/v3/sauc/bigmodel
+参数: app_id=7547060066&access_token=lIiI3tsagpi2Ynpm_qwbI1zPkKMctNZO
+                </div>
+                <p><strong>注意:</strong> 您的参数顺序可能有误。正确的参数应该是：</p>
+                <div class="code-block">
+app_id=7547060066&access_token=lIiI3tsagpi2Ynpm_qwbI1zPkKMctNZO
+                </div>
+
+                <h4>2. 接口地址问题</h4>
+                <p>您使用的接口地址可能需要特定的认证方式或参数格式。</p>
+
+                <h4>3. 网络连接问题</h4>
+                <p>可能是网络被防火墙阻止，或者服务器端限制了访问。</p>
+
+                <h4>4. 浏览器安全策略</h4>
+                <p>Chrome的安全策略可能阻止了WebSocket连接。</p>
+            </div>
+        </div>
+
+        <div class="solution">
+            <h3>💡 解决方案</h3>
+            <div id="solutions">
+                <h4>方案1: 检查认证参数格式</h4>
+                <p>确保使用正确的参数名称和值：</p>
+                <ul>
+                    <li><strong>app_id</strong>: 7547060066</li>
+                    <li><strong>access_token</strong>: lIiI3tsagpi2Ynpm_qwbI1zPkKMctNZO</li>
+                </ul>
+
+                <h4>方案2: 尝试不同的接口地址</h4>
+                <p>火山引擎可能有多个接口地址，尝试以下备选地址：</p>
+                <div class="code-block">
+wss://openspeech.bytedance.com/ws/v1/stream
+wss://openspeech.bytedance.com/api/v1/sauc/bigmodel
+wss://openspeech.bytedance.com/api/v2/sauc/bigmodel
+                </div>
+
+                <h4>方案3: 检查请求头</h4>
+                <p>某些API可能需要特定的请求头信息。</p>
+
+                <h4>方案4: 使用HTTP请求测试</h4>
+                <p>先用HTTP请求测试API是否正常工作。</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🧪 连接测试工具</h2>
+
+        <div class="test-section">
+            <h3>测试配置</h3>
+            <div class="form-group">
+                <label>WebSocket URL:</label>
+                <input type="text" id="wsUrl" value="wss://openspeech.bytedance.com/api/v3/sauc/bigmodel" style="width: 100%;">
+            </div>
+
+            <div class="form-group">
+                <label>认证参数:</label>
+                <textarea id="authParams" rows="3" placeholder="app_id=7547060066&access_token=lIiI3tsagpi2Ynpm_qwbI1zPkKMctNZO">app_id=7547060066&access_token=lIiI3tsagpi2Ynpm_qwbI1zPkKMctNZO</textarea>
+            </div>
+
+            <div class="form-group">
+                <label>测试类型:</label>
+                <select id="testType">
+                    <option value="basic">基础连接测试</option>
+                    <option value="auth">带认证参数测试</option>
+                    <option value="headers">自定义请求头测试</option>
+                    <option value="alternatives">备选地址测试</option>
+                </select>
+            </div>
+
+            <button onclick="runTest()">🚀 开始测试</button>
+            <button onclick="testAlternativeUrls()">🔗 测试备选地址</button>
+            <button onclick="clearLog()">🗑️ 清空日志</button>
+        </div>
+
+        <div class="log-area" id="logArea">
+            <div class="log-entry log-info">准备开始测试...</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📋 火山引擎API文档参考</h2>
+        <div class="test-section">
+            <h3>🔧 火山引擎语音识别API</h3>
+            <p><strong>官方文档:</strong> <a href="https://www.volcengine.com/docs/6561/79838" target="_blank">https://www.volcengine.com/docs/6561/79838</a></p>
+
+            <h4>WebSocket接口说明</h4>
+            <div class="code-block">
+// 标准接口地址
+wss://openspeech.bytedance.com/ws/v1/stream
+
+// 双向流式接口
+wss://openspeech.bytedance.com/api/v3/sauc/bigmodel
+            </div>
+
+            <h4>认证方式</h4>
+            <p>火山引擎支持多种认证方式：</p>
+            <ul>
+                <li><strong>AccessKey认证</strong>: 使用AccessKey ID和AccessKey Secret</li>
+                <li><strong>Token认证</strong>: 使用APP ID和Access Token</li>
+            </ul>
+
+            <h4>请求参数</h4>
+            <div class="code-block">
+// Token认证参数
+{
+  "app_id": "您的APPID",
+  "access_token": "您的AccessToken",
+  "timestamp": "时间戳",
+  "nonce": "随机字符串"
+}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 设置错误时间
+        document.getElementById('errorTime').textContent = new Date().toLocaleString();
+
+        function log(message, type = 'info') {
+            const logArea = document.getElementById('logArea');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+
+            let statusIcon = '';
+            if (type === 'success') statusIcon = '<span class="status-indicator status-connected"></span>';
+            else if (type === 'error') statusIcon = '<span class="status-indicator status-disconnected"></span>';
+            else if (type === 'warning') statusIcon = '<span class="status-indicator status-testing"></span>';
+
+            logEntry.innerHTML = `[${timestamp}] ${statusIcon}${message}`;
+            logArea.appendChild(logEntry);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('logArea').innerHTML = '<div class="log-entry log-info">日志已清空...</div>';
+        }
+
+        async function runTest() {
+            const wsUrl = document.getElementById('wsUrl').value.trim();
+            const authParams = document.getElementById('authParams').value.trim();
+            const testType = document.getElementById('testType').value;
+
+            if (!wsUrl) {
+                log('请输入WebSocket URL', 'error');
+                return;
+            }
+
+            clearLog();
+            log(`开始测试类型: ${testType}`, 'info');
+            log(`WebSocket URL: ${wsUrl}`, 'info');
+
+            switch (testType) {
+                case 'basic':
+                    await testBasicConnection(wsUrl);
+                    break;
+                case 'auth':
+                    await testAuthConnection(wsUrl, authParams);
+                    break;
+                case 'headers':
+                    await testHeadersConnection(wsUrl, authParams);
+                    break;
+                case 'alternatives':
+                    await testAlternativeUrls();
+                    break;
+            }
+        }
+
+        async function testBasicConnection(url) {
+            return new Promise((resolve) => {
+                log(`测试基础连接（无认证参数）...`, 'info');
+
+                try {
+                    const ws = new WebSocket(url);
+                    const timeout = setTimeout(() => {
+                        log('连接超时（10秒）', 'error');
+                        ws.close();
+                        resolve();
+                    }, 10000);
+
+                    ws.onopen = () => {
+                        clearTimeout(timeout);
+                        log('✅ 基础连接成功！', 'success');
+                        ws.close();
+                        resolve();
+                    };
+
+                    ws.onerror = (error) => {
+                        clearTimeout(timeout);
+                        log(`❌ 基础连接失败: ${error.type}`, 'error');
+                        analyzeError(error, url);
+                        resolve();
+                    };
+
+                    ws.onclose = (event) => {
+                        log(`连接关闭 - 代码: ${event.code}, 原因: ${event.reason || '未知'}`, 'info');
+                        if (event.code === 1006) {
+                            log('🔍 检测到1006错误 - 连接被异常关闭', 'warning');
+                        }
+                    };
+                } catch (error) {
+                    log(`创建WebSocket失败: ${error.message}`, 'error');
+                    resolve();
+                }
+            });
+        }
+
+        async function testAuthConnection(url, authParams) {
+            const fullUrl = authParams ? `${url}?${authParams}` : url;
+            return testBasicConnection(fullUrl);
+        }
+
+        async function testHeadersConnection(url, authParams) {
+            log('测试自定义请求头连接...', 'info');
+            log('⚠️ 注意: WebSocket API不支持自定义请求头，需要通过URL参数传递认证信息', 'warning');
+            return testAuthConnection(url, authParams);
+        }
+
+        async function testAlternativeUrls() {
+            const alternativeUrls = [
+                {
+                    name: '火山引擎标准接口',
+                    url: 'wss://openspeech.bytedance.com/ws/v1/stream'
+                },
+                {
+                    name: '火山引擎API v1',
+                    url: 'wss://openspeech.bytedance.com/api/v1/sauc/bigmodel'
+                },
+                {
+                    name: '火山引擎API v2',
+                    url: 'wss://openspeech.bytedance.com/api/v2/sauc/bigmodel'
+                },
+                {
+                    name: '当前使用地址',
+                    url: 'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel'
+                }
+            ];
+
+            const authParams = document.getElementById('authParams').value.trim();
+
+            for (const item of alternativeUrls) {
+                log(`\n🔄 测试: ${item.name}`, 'info');
+                log(`URL: ${item.url}`, 'info');
+
+                await testAuthConnection(item.url, authParams);
+
+                // 等待2秒再测试下一个
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
+
+        function analyzeError(error, url) {
+            log('\n🔍 错误分析:', 'warning');
+
+            if (error.target && error.target.url) {
+                const targetUrl = error.target.url;
+
+                if (targetUrl.includes('openspeech.bytedance.com')) {
+                    log('✓ 确认是火山引擎语音识别服务', 'info');
+                }
+
+                if (targetUrl.includes('app_id') && targetUrl.includes('access_token')) {
+                    log('✓ 检测到认证参数已附加到URL', 'info');
+                }
+            }
+
+            log('\n💡 建议检查项:', 'warning');
+            log('1. 确认APP ID和Access Token是否正确', 'info');
+            log('2. 检查网络连接是否正常', 'info');
+            log('3. 确认接口地址是否需要特定的认证方式', 'info');
+            log('4. 检查是否有防火墙或代理阻止连接', 'info');
+            log('5. 确认服务端是否正常运行', 'info');
+        }
+
+        // 页面加载完成后的初始化
+        window.onload = function() {
+            setTimeout(() => {
+                log('🚀 WebSocket错误分析工具已加载', 'info');
+                log('💡 建议先运行"备选地址测试"来找到可用的接口', 'info');
+            }, 100);
+        };
+    </script>
+</body>
+</html>

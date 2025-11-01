@@ -9,7 +9,6 @@
   const customApiUrlInput = document.getElementById('customApiUrl');
   const appIdInput = document.getElementById('appId');
   const accessTokenInput = document.getElementById('accessToken');
-  const customApiGroup = document.getElementById('customApiGroup');
   const configForm = document.getElementById('configForm');
   const clearBtn = document.getElementById('clearBtn');
   const saveBtn = document.getElementById('saveBtn');
@@ -51,11 +50,7 @@
   // 处理模型选择变化
   function handleModelChange() {
     const selectedModel = modelSelect.value;
-    if (selectedModel === 'custom') {
-      customApiGroup.style.display = 'block';
-    } else {
-      customApiGroup.style.display = 'none';
-    }
+    // 接口地址现在对所有模型都可见
     hideStatus();
   }
 
@@ -83,6 +78,11 @@
       }
       if (result.accessToken) {
         accessTokenInput.value = result.accessToken;
+      }
+
+      // 如果没有自定义接口地址，设置默认值
+      if (!result.customApiUrl && (!result.modelType || result.modelType === 'volcano')) {
+        customApiUrlInput.value = 'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel';
       }
     });
   }
@@ -165,7 +165,6 @@
           customApiUrlInput.value = '';
           appIdInput.value = '';
           accessTokenInput.value = '';
-          customApiGroup.style.display = 'none';
           showStatus('配置已清除', 'success');
           console.log('API配置已清除');
         }

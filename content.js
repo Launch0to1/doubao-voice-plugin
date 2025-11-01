@@ -193,33 +193,111 @@
 
   // 连接WebSocket
   async function connectWebSocket(config) {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
         // 生成认证参数
         const authParams = generateAuthParams(config);
-        const wsUrl = config.modelType === 'custom' ?
+        let wsUrl = config.modelType === 'custom' ?
           `${config.customApiUrl}?${authParams}` :
           `${config.customApiUrl || MODEL_CONFIGS.volcano.defaultUrl}?${authParams}`;
 
-        ws = new WebSocket(wsUrl);
+        console.log('=== WebSocket连接调试信息 ===');
+        console.log('模型类型:', config.modelType);
+        console.log('模型名称:', config.modelName);
+        console.log('自定义接口地址:', config.customApiUrl);
+        console.log('APP ID:', config.appId);
+        console.log('Access Token:', config.accessToken ? '已设置' : '未设置');
+        console.log('认证参数:', authParams);
+        console.log('完整WebSocket URL:', wsUrl);
+        console.log('===========================');
 
-        ws.onopen = () => {
-          console.log('WebSocket连接成功');
+        // 尝试连接，如果失败可以尝试简化连接
+        let retryCount = 0;
+        const maxRetries = 2;
+
+        async function attemptConnection(url, useAuth = true) {
+          return new Promise((resolveAttempt, rejectAttempt) => {
+            console.log(`尝试连接 (${retryCount + 1}/${maxRetries}): ${url}`);
+
+            try {
+              ws = new WebSocket(url);
+
+              // 设置连接超时
+              const connectionTimeout = setTimeout(() => {
+                if (ws.readyState !== WebSocket.OPEN) {
+                  ws.close();
+                  const timeoutError = new Error('WebSocket连接超时（10秒）');
+                  console.error('连接超时:', timeoutError);
+                  rejectAttempt(timeoutError);
+                }
+              }, 10000); // 10秒超时
+
+              ws.onopen = () => {
+                clearTimeout(connectionTimeout);
+                console.log('WebSocket连接成功');
+                resolveAttempt();
+              };
+
+              ws.onmessage = (event) => {
+                handleRecognitionResult(event.data);
+              };
+
+              ws.onerror = (error) => {
+                clearTimeout(connectionTimeout);
+                console.error(`连接失败 (${url}):`, error);
+                rejectAttempt(error);
+              };
+
+              ws.onclose = (event) => {
+                console.log('WebSocket连接关闭, 代码:', event.code, '原因:', event.reason);
+              };
+
+            } catch (error) {
+              rejectAttempt(error);
+            }
+          });
+        }
+
+        // 尝试主要连接
+        try {
+          await attemptConnection(wsUrl);
           resolve();
-        };
+        } catch (error) {
+          console.log('主要连接失败，尝试备用方案...');
 
-        ws.onmessage = (event) => {
-          handleRecognitionResult(event.data);
-        };
+          // 如果带参数失败，尝试不带参数的基础连接
+          if (authParams && retryCount < maxRetries) {
+            retryCount++;
+            try {
+              const baseUrl = config.modelType === 'custom' ?
+                config.customApiUrl :
+                (config.customApiUrl || MODEL_CONFIGS.volcano.defaultUrl);
+              console.log('尝试基础连接（不带参数）:', baseUrl);
+              await attemptConnection(baseUrl, false);
+              resolve();
+            } catch (baseError) {
+              console.error('基础连接也失败:', baseError);
 
-        ws.onerror = (error) => {
-          console.error('WebSocket错误:', error);
-          reject(error);
-        };
+              // 更友好的错误提示
+              let errorMessage = 'WebSocket连接失败';
+              if (error.target && error.target.url) {
+                errorMessage += `\nURL: ${error.target.url}`;
+              }
 
-        ws.onclose = () => {
-          console.log('WebSocket连接关闭');
-        };
+              alert(`语音识别连接失败，请检查：\n1. API配置是否正确\n2. 网络连接是否正常\n3. 接口地址是否可访问\n4. 认证参数是否正确\n\n错误信息：${errorMessage}\n\n可以尝试使用调试工具测试连接：打开 debug_websocket.html`);
+              reject(error);
+            }
+          } else {
+            // 更友好的错误提示
+            let errorMessage = 'WebSocket连接失败';
+            if (error.target && error.target.url) {
+              errorMessage += `\nURL: ${error.target.url}`;
+            }
+
+            alert(`语音识别连接失败，请检查：\n1. API配置是否正确\n2. 网络连接是否正常\n3. 接口地址是否可访问\n\n错误信息：${errorMessage}\n\n可以尝试使用调试工具测试连接：打开 debug_websocket.html`);
+            reject(error);
+          }
+        }
 
       } catch (error) {
         reject(error);
@@ -232,21 +310,39 @@
     const timestamp = Date.now();
     const nonce = Math.random().toString(36).substr(2, 9);
 
-    if (config.modelType === 'custom') {
-      // 自定义模型，使用APP ID和Access Token
+    // 智能判断认证方式：如果提供了APP ID和Access Token，优先使用它们
+    if (config.appId || config.accessToken) {
+      // 使用APP ID和Access Token模式（适用于您提到的接口）
       const params = [];
       if (config.appId) params.push(`app_id=${config.appId}`);
       if (config.accessToken) params.push(`access_token=${config.accessToken}`);
       params.push(`timestamp=${timestamp}`);
       params.push(`nonce=${nonce}`);
+
+      // 记录生成的参数用于调试
+      console.log('使用APP ID + Access Token认证模式');
+      console.log('生成的认证参数:', params.join('&'));
       return params.join('&');
-    } else {
-      // 火山引擎模型，使用Access Key
+    } else if (config.apiKey || config.apiSecret) {
+      // 传统的Access Key模式
       const params = [];
       if (config.apiKey) params.push(`access_key_id=${config.apiKey}`);
       if (config.apiSecret) params.push(`access_key_secret=${config.apiSecret}`);
       params.push(`timestamp=${timestamp}`);
       params.push(`nonce=${nonce}`);
+
+      // 记录生成的参数用于调试
+      console.log('使用Access Key认证模式');
+      console.log('生成的认证参数:', params.join('&'));
+      return params.join('&');
+    } else {
+      // 没有任何认证信息，只返回时间戳和随机数
+      const params = [];
+      params.push(`timestamp=${timestamp}`);
+      params.push(`nonce=${nonce}`);
+
+      console.log('使用基础认证参数（无密钥）');
+      console.log('生成的认证参数:', params.join('&'));
       return params.join('&');
     }
   }
@@ -309,16 +405,32 @@
         const modelType = result.modelType || 'volcano';
         const modelConfig = MODEL_CONFIGS[modelType];
 
-        resolve({
+        const config = {
           modelType: modelType,
           modelName: modelConfig.name,
           apiKey: result.apiKey || '',
           apiSecret: result.apiSecret || '',
-          customApiUrl: result.customApiUrl || modelConfig.defaultUrl,
+          // 如果有自定义接口地址，优先使用；否则使用默认地址
+          customApiUrl: result.customApiUrl && result.customApiUrl.trim() !== '' ?
+            result.customApiUrl : modelConfig.defaultUrl,
           appId: result.appId || '',
           accessToken: result.accessToken || '',
           authType: modelConfig.authType
+        };
+
+        // 记录当前配置用于调试
+        console.log('当前API配置:', {
+          modelType: config.modelType,
+          modelName: config.modelName,
+          hasApiKey: !!config.apiKey,
+          hasApiSecret: !!config.apiSecret,
+          customApiUrl: config.customApiUrl,
+          hasAppId: !!config.appId,
+          hasAccessToken: !!config.accessToken,
+          authType: config.authType
         });
+
+        resolve(config);
       });
     });
   }

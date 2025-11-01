@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>火山引擎API连接测试器</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .config-section {
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log-area {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+        .log-error { color: #dc3545; }
+        .log-success { color: #28a745; }
+        .log-info { color: #17a2b8; }
+        .log-warning { color: #ffc107; }
+        .result-box {
+            background: #e7f3ff;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .error-box {
+            background: #f8d7da;
+            border: 1px solid #dc3545;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .success-box {
+            background: #d4edda;
+            border: 1px solid #28a745;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .code-block {
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .test-card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+        }
+        .test-card h4 {
+            margin-top: 0;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 火山引擎语音识别API测试器</h1>
+        <p>专门测试火山引擎流式语音识别API连接的工具</p>
+    </div>
+
+    <div class="container">
+        <h2>⚙️ 测试配置</h2>
+        <div class="config-section">
+            <div class="form-group">
+                <label>APP ID:</label>
+                <input type="text" id="appId" value="7547060066" placeholder="请输入APP ID">
+            </div>
+            <div class="form-group">
+                <label>Access Token:</label>
+                <input type="text" id="accessToken" value="lIiI3tsagpi2Ynpm_qwbI1zPkKMctNZO" placeholder="请输入Access Token">
+            </div>
+            <div class="form-group">
+                <label>接口地址:</label>
+                <select id="apiEndpoint">
+                    <option value="wss://openspeech.bytedance.com/api/v3/sauc/bigmodel">wss://openspeech.bytedance.com/api/v3/sauc/bigmodel</option>
+                    <option value="wss://openspeech.bytedance.com/ws/v1/stream">wss://openspeech.bytedance.com/ws/v1/stream</option>
+                    <option value="wss://openspeech.bytedance.com/api/v2/sauc/bigmodel">wss://openspeech.bytedance.com/api/v2/sauc/bigmodel</option>
+                    <option value="wss://openspeech.bytedance.com/api/v1/sauc/bigmodel">wss://openspeech.bytedance.com/api/v1/sauc/bigmodel</option>
+                    <option value="custom">自定义地址</option>
+                </select>
+            </div>
+            <div class="form-group" id="customEndpointGroup" style="display: none;">
+                <label>自定义接口地址:</label>
+                <input type="text" id="customEndpoint" placeholder="wss://your-api-endpoint.com/path">
+            </div>
+            <div class="form-group">
+                <label>连接超时 (秒):</label>
+                <select id="timeout">
+                    <option value="5">5秒</option>
+                    <option value="10" selected>10秒</option>
+                    <option value="15">15秒</option>
+                    <option value="30">30秒</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin: 20px 0;">
+            <button onclick="runComprehensiveTest()">🚀 运行综合测试</button>
+            <button onclick="testAllEndpoints()">🔗 测试所有端点</button>
+            <button onclick="testAuthVariations()">🔑 测试认证变体</button>
+            <button onclick="clearResults()">🗑️ 清空结果</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📊 测试结果</h2>
+        <div id="testResults">
+            <div class="log-area">
+                <div class="log-entry log-info">等待测试开始...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🔍 诊断分析</h2>
+        <div id="diagnosticAnalysis">
+            <p>运行测试后将显示详细的诊断分析...</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📚 火山引擎API参考</h2>
+        <div class="test-grid">
+            <div class="test-card">
+                <h4>🔧 官方文档</h4>
+                <p><a href="https://www.volcengine.com/docs/6561/79838" target="_blank">流式语音识别API文档</a></p>
+                <p><a href="https://www.volcengine.com/docs/6561/115174" target="_blank">WebSocket接口说明</a></p>
+            </div>
+            <div class="test-card">
+                <h4>🔗 接口地址</h4>
+                <ul>
+                    <li>wss://openspeech.bytedance.com/ws/v1/stream</li>
+                    <li>wss://openspeech.bytedance.com/api/v3/sauc/bigmodel</li>
+                </ul>
+            </div>
+            <div class="test-card">
+                <h4>🔑 认证方式</h4>
+                <ul>
+                    <li>AccessKey ID + Secret</li>
+                    <li>APP ID + Access Token</li>
+                </ul>
+            </div>
+            <div class="test-card">
+                <h4>⚠️ 常见错误</h4>
+                <ul>
+                    <li>1006: 连接被拒绝</li>
+                    <li>认证参数错误</li>
+                    <li>接口地址错误</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 监听接口地址选择变化
+        document.getElementById('apiEndpoint').addEventListener('change', function() {
+            const customGroup = document.getElementById('customEndpointGroup');
+            if (this.value === 'custom') {
+                customGroup.style.display = 'block';
+            } else {
+                customGroup.style.display = 'none';
+            }
+        });
+
+        function log(message, type = 'info') {
+            const resultsDiv = document.getElementById('testResults');
+            const timestamp = new Date().toLocaleTimeString();
+
+            let logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+
+            // 如果当前没有日志区域，创建一个
+            if (!resultsDiv.querySelector('.log-area')) {
+                resultsDiv.innerHTML = '<div class="log-area"></div>';
+            }
+
+            const logArea = resultsDiv.querySelector('.log-area');
+            logArea.appendChild(logEntry);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function clearResults() {
+            document.getElementById('testResults').innerHTML = '<div class="log-area"><div class="log-entry log-info">结果已清空...</div></div>';
+            document.getElementById('diagnosticAnalysis').innerHTML = '<p>运行测试后将显示详细的诊断分析...</p>';
+        }
+
+        async function runComprehensiveTest() {
+            const appId = document.getElementById('appId').value.trim();
+            const accessToken = document.getElementById('accessToken').value.trim();
+            const endpointSelect = document.getElementById('apiEndpoint');
+            const timeout = parseInt(document.getElementById('timeout').value) * 1000;
+
+            let endpoint = endpointSelect.value;
+            if (endpoint === 'custom') {
+                endpoint = document.getElementById('customEndpoint').value.trim();
+                if (!endpoint) {
+                    log('请输入自定义接口地址', 'error');
+                    return;
+                }
+            }
+
+            if (!appId || !accessToken) {
+                log('请输入完整的APP ID和Access Token', 'error');
+                return;
+            }
+
+            clearResults();
+            log('🚀 开始综合测试...', 'info');
+            log(`APP ID: ${appId}`, 'info');
+            log(`Access Token: ${accessToken.substring(0, 10)}...`, 'info');
+            log(`接口地址: ${endpoint}`, 'info');
+            log(`超时时间: ${timeout/1000}秒`, 'info');
+
+            // 构建认证参数
+            const timestamp = Date.now();
+            const nonce = Math.random().toString(36).substr(2, 9);
+            const authParams = `app_id=${appId}&access_token=${accessToken}&timestamp=${timestamp}&nonce=${nonce}`;
+            const fullUrl = `${endpoint}?${authParams}`;
+
+            log(`完整URL: ${fullUrl}`, 'info');
+
+            // 开始连接测试
+            await testWebSocketConnection(fullUrl, endpoint, authParams, timeout);
+        }
+
+        async function testWebSocketConnection(fullUrl, baseUrl, authParams, timeout) {
+            return new Promise((resolve) => {
+                log('\n🔄 开始WebSocket连接测试...', 'info');
+
+                try {
+                    const ws = new WebSocket(fullUrl);
+                    const startTime = Date.now();
+                    let connectionEstablished = false;
+
+                    const timeoutId = setTimeout(() => {
+                        if (!connectionEstablished) {
+                            log('⏰ 连接超时', 'error');
+                            ws.close();
+                            analyzeConnectionFailure(baseUrl, authParams, 'timeout');
+                            resolve();
+                        }
+                    }, timeout);
+
+                    ws.onopen = () => {
+                        connectionEstablished = true;
+                        clearTimeout(timeoutId);
+                        const connectTime = Date.now() - startTime;
+                        log(`✅ 连接成功！耗时: ${connectTime}ms`, 'success');
+
+                        // 发送测试数据
+                        try {
+                            ws.send(JSON.stringify({
+                                type: 'test',
+                                message: 'Hello from test client',
+                                timestamp: Date.now()
+                            }));
+                            log('📤 测试数据已发送', 'info');
+                        } catch (e) {
+                            log(`发送数据失败: ${e.message}`, 'error');
+                        }
+
+                        setTimeout(() => {
+                            ws.close();
+                            log('连接已关闭', 'info');
+                            resolve();
+                        }, 2000);
+                    };
+
+                    ws.onmessage = (event) => {
+                        log(`📥 收到消息: ${event.data}`, 'success');
+                        analyzeServerResponse(event.data);
+                    };
+
+                    ws.onerror = (error) => {
+                        clearTimeout(timeoutId);
+                        log(`❌ 连接错误: ${error.type}`, 'error');
+                        analyzeConnectionFailure(baseUrl, authParams, error);
+                        resolve();
+                    };
+
+                    ws.onclose = (event) => {
+                        if (!connectionEstablished) {
+                            clearTimeout(timeoutId);
+                        }
+
+                        log(`连接关闭 - 代码: ${event.code}, 原因: ${event.reason || '未知'}`, 'info');
+
+                        if (event.code === 1006) {
+                            log('🔍 检测到1006错误 - 连接被异常关闭', 'warning');
+                            if (!connectionEstablished) {
+                                analyzeConnectionFailure(baseUrl, authParams, '1006');
+                            }
+                        }
+
+                        resolve();
+                    };
+
+                } catch (error) {
+                    log(`创建WebSocket失败: ${error.message}`, 'error');
+                    resolve();
+                }
+            });
+        }
+
+        function analyzeConnectionFailure(url, authParams, errorType) {
+            const analysisDiv = document.getElementById('diagnosticAnalysis');
+            let analysisHtml = '<h3>🔍 连接失败分析</h3>';
+
+            analysisHtml += '<div class="error-box">';
+            analysisHtml += `<h4>错误类型: ${errorType}</h4>`;
+            analysisHtml += `<p><strong>接口地址:</strong> ${url}</p>`;
+            analysisHtml += `<p><strong>认证参数:</strong> ${authParams}</p>`;
+            analysisHtml += '</div>';
+
+            analysisHtml += '<h4>🔍 可能的原因:</h4>';
+            analysisHtml += '<ul>';
+
+            if (errorType === '1006') {
+                analysisHtml += '<li><strong>认证失败:</strong> APP ID或Access Token可能无效</li>';
+                analysisHtml += '<li><strong>接口地址错误:</strong> 可能使用了错误的API端点</li>';
+                analysisHtml += '<li><strong>参数格式错误:</strong> 认证参数格式可能不符合要求</li>';
+                analysisHtml += '<li><strong>服务未启用:</strong> 语音识别服务可能未在控制台启用</li>';
+            } else if (errorType === 'timeout') {
+                analysisHtml += '<li><strong>网络超时:</strong> 连接请求超时，可能是网络问题</li>';
+                analysisHtml += '<li><strong>服务器无响应:</strong> 服务器可能没有响应WebSocket连接</li>';
+            } else {
+                analysisHtml += '<li><strong>网络问题:</strong> 可能存在网络连接问题</li>';
+                analysisHtml += '<li><strong>浏览器限制:</strong> 浏览器安全策略可能阻止连接</li>';
+            }
+
+            analysisHtml += '</ul>';
+
+            analysisHtml += '<h4>💡 建议解决方案:</h4>';
+            analysisHtml += '<ul>';
+            analysisHtml += '<li>验证APP ID和Access Token是否正确</li>';
+            analysisHtml += '<li>尝试使用不同的接口地址</li>';
+            analysisHtml += '<li>检查火山引擎控制台中的服务状态</li>';
+            analysisHtml += '<li>确认语音识别服务已启用</li>';
+            analysisHtml += '<li>联系火山引擎技术支持确认接口状态</li>';
+            analysisHtml += '</ul>';
+
+            analysisDiv.innerHTML = analysisHtml;
+        }
+
+        function analyzeServerResponse(data) {
+            try {
+                const response = JSON.parse(data);
+                log('📊 服务器响应分析:', 'info');
+                log(`响应类型: ${response.type || '未知'}`, 'info');
+
+                if (response.error) {
+                    log(`❌ 服务器错误: ${JSON.stringify(response.error)}`, 'error');
+                }
+
+                if (response.code) {
+                    log(`响应代码: ${response.code}`, 'info');
+                }
+
+            } catch (e) {
+                log(`原始响应: ${data}`, 'info');
+            }
+        }
+
+        async function testAllEndpoints() {
+            const endpoints = [
+                'wss://openspeech.bytedance.com/ws/v1/stream',
+                'wss://openspeech.bytedance.com/api/v1/sauc/bigmodel',
+                'wss://openspeech.bytedance.com/api/v2/sauc/bigmodel',
+                'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel'
+            ];
+
+            const appId = document.getElementById('appId').value.trim();
+            const accessToken = document.getElementById('accessToken').value.trim();
+            const timeout = parseInt(document.getElementById('timeout').value) * 1000;
+
+            if (!appId || !accessToken) {
+                log('请输入APP ID和Access Token', 'error');
+                return;
+            }
+
+            clearResults();
+            log('🔄 开始测试所有端点...', 'info');
+
+            for (let i = 0; i < endpoints.length; i++) {
+                const endpoint = endpoints[i];
+                log(`\n📍 测试端点 ${i + 1}/${endpoints.length}: ${endpoint}`, 'info');
+
+                const timestamp = Date.now();
+                const nonce = Math.random().toString(36).substr(2, 9);
+                const authParams = `app_id=${appId}&access_token=${accessToken}&timestamp=${timestamp}&nonce=${nonce}`;
+                const fullUrl = `${endpoint}?${authParams}`;
+
+                await testWebSocketConnection(fullUrl, endpoint, authParams, timeout);
+
+                // 等待3秒再测试下一个
+                if (i < endpoints.length - 1) {
+                    log('等待3秒后继续测试...', 'info');
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                }
+            }
+        }
+
+        async function testAuthVariations() {
+            const appId = document.getElementById('appId').value.trim();
+            const accessToken = document.getElementById('accessToken').value.trim();
+            const endpoint = document.getElementById('apiEndpoint').value;
+            const timeout = parseInt(document.getElementById('timeout').value) * 1000;
+
+            if (!appId || !accessToken) {
+                log('请输入APP ID和Access Token', 'error');
+                return;
+            }
+
+            clearResults();
+            log('🔄 开始测试认证参数变体...', 'info');
+
+            const authVariations = [
+                {
+                    name: '标准格式',
+                    params: `app_id=${appId}&access_token=${accessToken}`
+                },
+                {
+                    name: '带时间戳',
+                    params: `app_id=${appId}&access_token=${accessToken}&timestamp=${Date.now()}`
+                },
+                {
+                    name: '带随机数',
+                    params: `app_id=${appId}&access_token=${accessToken}&nonce=${Math.random().toString(36).substr(2, 9)}`
+                },
+                {
+                    name: '完整格式',
+                    params: `app_id=${appId}&access_token=${accessToken}&timestamp=${Date.now()}&nonce=${Math.random().toString(36).substr(2, 9)}`
+                }
+            ];
+
+            for (let i = 0; i < authVariations.length; i++) {
+                const variation = authVariations[i];
+                log(`\n🔑 测试认证变体 ${i + 1}/${authVariations.length}: ${variation.name}`, 'info');
+                log(`参数: ${variation.params}`, 'info');
+
+                const fullUrl = `${endpoint}?${variation.params}`;
+                await testWebSocketConnection(fullUrl, endpoint, variation.params, timeout);
+
+                // 等待2秒再测试下一个
+                if (i < authVariations.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            }
+        }
+
+        // 页面加载初始化
+        window.onload = function() {
+            setTimeout(() => {
+                log('🚀 火山引擎API测试器已加载', 'info');
+                log('💡 建议先运行"测试所有端点"来找到可用的接口', 'info');
+            }, 100);
+        };
+    </script>
+</body>
+</html>
