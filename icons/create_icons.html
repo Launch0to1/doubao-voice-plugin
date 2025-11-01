@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>图标生成器</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        canvas { border: 1px solid #ccc; margin: 10px; }
+        .icon-container { display: flex; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+    <h1>语音输入助手图标生成器</h1>
+    <p>右键点击下面的图标可以保存为PNG文件：</p>
+
+    <div class="icon-container">
+        <canvas id="canvas16" width="16" height="16"></canvas>
+        <canvas id="canvas48" width="48" height="48"></canvas>
+        <canvas id="canvas128" width="128" height="128"></canvas>
+    </div>
+
+    <script>
+        function drawMicrophoneIcon(canvas, size) {
+            const ctx = canvas.getContext('2d');
+            const centerX = size / 2;
+            const centerY = size / 2;
+            const scale = size / 128; // 基准大小128x128
+
+            // 清除画布
+            ctx.clearRect(0, 0, size, size);
+
+            // 背景圆形
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 50 * scale, 0, 2 * Math.PI);
+            ctx.fillStyle = '#4285f4';
+            ctx.fill();
+
+            // 麦克风主体
+            ctx.beginPath();
+            ctx.rect(centerX - 15 * scale, centerY - 25 * scale, 30 * scale, 35 * scale);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2 * scale;
+            ctx.stroke();
+
+            // 麦克风顶部
+            ctx.beginPath();
+            ctx.arc(centerX, centerY - 25 * scale, 15 * scale, Math.PI, 0);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.stroke();
+
+            // 麦克风网格线
+            ctx.beginPath();
+            ctx.moveTo(centerX - 10 * scale, centerY - 15 * scale);
+            ctx.lineTo(centerX + 10 * scale, centerY - 15 * scale);
+            ctx.moveTo(centerX - 10 * scale, centerY - 5 * scale);
+            ctx.lineTo(centerX + 10 * scale, centerY - 5 * scale);
+            ctx.moveTo(centerX - 10 * scale, centerY + 5 * scale);
+            ctx.lineTo(centerX + 10 * scale, centerY + 5 * scale);
+            ctx.strokeStyle = '#4285f4';
+            ctx.lineWidth = 1 * scale;
+            ctx.stroke();
+
+            // 支架
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY + 10 * scale);
+            ctx.lineTo(centerX, centerY + 25 * scale);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3 * scale;
+            ctx.stroke();
+
+            // 底座
+            ctx.beginPath();
+            ctx.moveTo(centerX - 8 * scale, centerY + 25 * scale);
+            ctx.lineTo(centerX + 8 * scale, centerY + 25 * scale);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3 * scale;
+            ctx.stroke();
+
+            // 外圈边框
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 50 * scale, 0, 2 * Math.PI);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3 * scale;
+            ctx.stroke();
+        }
+
+        // 生成所有尺寸的图标
+        const sizes = [16, 48, 128];
+        sizes.forEach(size => {
+            const canvas = document.getElementById(`canvas${size}`);
+            drawMicrophoneIcon(canvas, size);
+
+            // 添加标签
+            const label = document.createElement('div');
+            label.textContent = `${size}x${size} 像素`;
+            label.style.textAlign = 'center';
+            label.style.marginBottom = '20px';
+            canvas.parentNode.insertBefore(label, canvas.nextSibling);
+        });
+
+        // 添加使用说明
+        const instructions = document.createElement('div');
+        instructions.innerHTML = `
+            <h3>使用说明：</h3>
+            <ol>
+                <li>右键点击上面的图标</li>
+                <li>选择"图片另存为..."</li>
+                <li>保存到扩展的icons文件夹中</li>
+                <li>文件名分别为：mic16.png, mic48.png, mic128.png</li>
+            </ol>
+            <p>或者使用下面的按钮批量下载：</p>
+        `;
+        document.body.appendChild(instructions);
+
+        // 添加批量下载功能
+        const downloadBtn = document.createElement('button');
+        downloadBtn.textContent = '批量下载所有图标';
+        downloadBtn.style.padding = '10px 20px';
+        downloadBtn.style.fontSize = '16px';
+        downloadBtn.style.background = '#4285f4';
+        downloadBtn.style.color = 'white';
+        downloadBtn.style.border = 'none';
+        downloadBtn.style.borderRadius = '4px';
+        downloadBtn.style.cursor = 'pointer';
+
+        downloadBtn.addEventListener('click', () => {
+            sizes.forEach(size => {
+                const canvas = document.getElementById(`canvas${size}`);
+                const link = document.createElement('a');
+                link.download = `mic${size}.png`;
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        });
+
+        document.body.appendChild(downloadBtn);
+    </script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "语音输入助手",
+  "version": "1.0.0",
+  "description": "支持火山引擎流式语音识别的浏览器插件，为任意输入框提供语音输入功能",
+
+  "permissions": [
+    "microphone",
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+
+  "host_permissions": [
+    "https://openspeech.bytedance.com/*"
+  ],
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "语音输入助手设置"
+  },
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "icons": {
+    "16": "icons/mic16.png",
+    "48": "icons/mic48.png",
+    "128": "icons/mic128.png"
+  }
+}

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语音输入助手设置</title>
+    <style>
+        body {
+            width: 350px;
+            padding: 20px;
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            margin: 0;
+            color: #4285f4;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header .subtitle {
+            color: #666;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #4285f4;
+            box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.1);
+        }
+
+        .form-group .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #4285f4;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #3367d6;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #666;
+            border: 1px solid #dadce0;
+        }
+
+        .btn-secondary:hover {
+            background: #e8f0fe;
+            color: #4285f4;
+        }
+
+        .status {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            text-align: center;
+            display: none;
+        }
+
+        .status.success {
+            background: #e6f4ea;
+            color: #137333;
+            border: 1px solid #34a853;
+        }
+
+        .status.error {
+            background: #fce8e6;
+            color: #c5221f;
+            border: 1px solid #ea4335;
+        }
+
+        .info-section {
+            margin-top: 20px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #4285f4;
+        }
+
+        .info-section h3 {
+            margin: 0 0 8px 0;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .info-section p {
+            margin: 0;
+            color: #666;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .link {
+            color: #4285f4;
+            text-decoration: none;
+        }
+
+        .link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎤 语音输入助手</h1>
+            <div class="subtitle">火山引擎语音识别配置</div>
+        </div>
+
+        <form id="configForm">
+            <div class="form-group">
+                <label for="apiKey">API密钥 (AccessKey ID)</label>
+                <input type="text" id="apiKey" placeholder="请输入您的AccessKey ID">
+                <div class="help-text">在火山引擎控制台获取的AccessKey ID</div>
+            </div>
+
+            <div class="form-group">
+                <label for="apiSecret">API密钥 (AccessKey Secret)</label>
+                <input type="password" id="apiSecret" placeholder="请输入您的AccessKey Secret">
+                <div class="help-text">在火山引擎控制台获取的AccessKey Secret</div>
+            </div>
+
+            <div class="button-group">
+                <button type="button" class="btn btn-secondary" id="clearBtn">清除</button>
+                <button type="submit" class="btn btn-primary" id="saveBtn">保存</button>
+            </div>
+        </form>
+
+        <div id="status" class="status"></div>
+
+        <div class="info-section">
+            <h3>📋 使用说明</h3>
+            <p>
+                1. 在任意网页的输入框中点击，右侧会出现麦克风图标<br>
+                2. 点击麦克风图标开始语音输入<br>
+                3. 再次点击或语音结束自动停止<br>
+                4. 识别结果将实时填入输入框
+            </p>
+        </div>
+
+        <div class="info-section">
+            <h3>🔗 相关链接</h3>
+            <p>
+                <a href="https://console.volcengine.com/" target="_blank" class="link">火山引擎控制台</a> |
+                <a href="https://www.volcengine.com/docs/6561/79838" target="_blank" class="link">API文档</a>
+            </p>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
