@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>二进制协议测试</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log-area {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+        .log-error { color: #dc3545; }
+        .log-success { color: #28a745; }
+        .log-info { color: #17a2b8; }
+        .log-warning { color: #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 二进制WebSocket协议测试</h1>
+        <p>测试火山引擎新的二进制WebSocket协议实现</p>
+    </div>
+
+    <div class="container">
+        <div class="test-section">
+            <h3>🧪 协议功能测试</h3>
+            <button onclick="testBinaryHeader()">测试二进制消息头</button>
+            <button onclick="testFullClientRequest()">测试FullClientRequest</button>
+            <button onclick="testAudioData()">测试音频数据格式</button>
+            <button onclick="testHeartbeat()">测试心跳消息</button>
+            <button onclick="testStopRequest()">测试停止请求</button>
+            <button onclick="clearLog()">清空日志</button>
+        </div>
+
+        <div class="log-area" id="logArea">
+            <div class="log-entry log-info">等待测试开始...</div>
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logArea = document.getElementById('logArea');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            logArea.appendChild(logEntry);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('logArea').innerHTML = '<div class="log-entry log-info">日志已清空...</div>';
+        }
+
+        // 生成请求ID
+        function generateRequestId() {
+            return 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        // 测试二进制消息头
+        function testBinaryHeader() {
+            log('🧪 测试二进制消息头...', 'info');
+
+            try {
+                // 创建二进制消息头（4字节）
+                const header = new ArrayBuffer(4);
+                const headerView = new DataView(header);
+
+                // 设置消息头数据
+                headerView.setUint8(0, 0x01); // 协议版本
+                headerView.setUint8(1, 0x01); // 消息类型: FullClientRequest
+                headerView.setUint8(2, 0x01); // 序列化方法: JSON
+                headerView.setUint8(3, 0x00); // 保留位
+
+                log(`协议版本: 0x${headerView.getUint8(0).toString(16).padStart(2, '0')}`, 'info');
+                log(`消息类型: 0x${headerView.getUint8(1).toString(16).padStart(2, '0')} (FullClientRequest)`, 'info');
+                log(`序列化方法: 0x${headerView.getUint8(2).toString(16).padStart(2, '0')} (JSON)`, 'info');
+                log(`保留位: 0x${headerView.getUint8(3).toString(16).padStart(2, '0')}`, 'info');
+
+                log('✅ 二进制消息头测试通过', 'success');
+            } catch (error) {
+                log(`❌ 二进制消息头测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 测试FullClientRequest消息
+        function testFullClientRequest() {
+            log('🧪 测试FullClientRequest消息...', 'info');
+
+            try {
+                const fullClientRequest = {
+                    app_id: '7547060066',
+                    user_id: 'chrome_extension_user',
+                    request_id: generateRequestId(),
+                    audio: {
+                        format: 'opus',
+                        rate: 16000,
+                        bits: 16,
+                        channel: 1,
+                        language: 'zh-CN'
+                    },
+                    request: {
+                        core_type: 'cn.sauc.sauc-streaming.v1',
+                        ref_text: '',
+                        res_text_format: 0,
+                        add_punc: true,
+                        vad_on: true,
+                        vad_pause: 500,
+                        vad_timeout: 2000,
+                        max_silence: 2000,
+                        max_sentence_silence: 2000,
+                        result_type: 'single',
+                        enable_chunk: true,
+                        chunk_interval: 250,
+                        enable_long_speech: true,
+                        enable_intermediate_result: true,
+                        enable_punctuation: true,
+                        enable_word_info: false,
+                        enable_semantic_smoothing: true,
+                        vocabulary_id: '',
+                        vocabulary_filter: 'default'
+                    },
+                    user: {
+                        uid: 'chrome_extension_user',
+                        device_id: 'chrome_extension'
+                    }
+                };
+
+                log('FullClientRequest对象:', 'info');
+                log(JSON.stringify(fullClientRequest, null, 2), 'info');
+
+                // 转换为二进制格式
+                const jsonString = JSON.stringify(fullClientRequest);
+                const encoder = new TextEncoder();
+                const binaryData = encoder.encode(jsonString);
+
+                // 创建完整消息
+                const header = new ArrayBuffer(4);
+                const headerView = new DataView(header);
+                headerView.setUint8(0, 0x01); // 协议版本
+                headerView.setUint8(1, 0x01); // 消息类型
+                headerView.setUint8(2, 0x01); // 序列化方法
+                headerView.setUint8(3, 0x00); // 保留位
+
+                const fullMessage = new Uint8Array(4 + binaryData.length);
+                fullMessage.set(new Uint8Array(header), 0);
+                fullMessage.set(binaryData, 4);
+
+                log(`完整消息大小: ${fullMessage.length} 字节`, 'info');
+                log(`消息头: 4 字节`, 'info');
+                log(`消息体: ${binaryData.length} 字节`, 'info');
+
+                log('✅ FullClientRequest测试通过', 'success');
+            } catch (error) {
+                log(`❌ FullClientRequest测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 测试音频数据格式
+        function testAudioData() {
+            log('🧪 测试音频数据格式...', 'info');
+
+            try {
+                // 模拟音频数据（创建一个小的音频数据缓冲区）
+                const mockAudioData = new ArrayBuffer(1024); // 1KB模拟音频数据
+                const audioView = new Uint8Array(mockAudioData);
+
+                // 填充一些模拟数据
+                for (let i = 0; i < audioView.length; i++) {
+                    audioView[i] = Math.floor(Math.random() * 256);
+                }
+
+                // 创建音频数据消息头
+                const header = new ArrayBuffer(4);
+                const headerView = new DataView(header);
+                headerView.setUint8(0, 0x01); // 协议版本
+                headerView.setUint8(1, 0x02); // 消息类型: 音频数据
+                headerView.setUint8(2, 0x00); // 序列化方法: 原始数据
+                headerView.setUint8(3, 0x00); // 保留位
+
+                // 组合完整消息
+                const fullMessage = new Uint8Array(4 + mockAudioData.byteLength);
+                fullMessage.set(new Uint8Array(header), 0);
+                fullMessage.set(new Uint8Array(mockAudioData), 4);
+
+                log(`音频数据消息大小: ${fullMessage.length} 字节`, 'info');
+                log(`消息头: 4 字节`, 'info');
+                log(`音频数据: ${mockAudioData.byteLength} 字节`, 'info');
+                log(`前10个音频字节: ${Array.from(audioView.slice(0, 10)).join(', ')}`, 'info');
+
+                log('✅ 音频数据格式测试通过', 'success');
+            } catch (error) {
+                log(`❌ 音频数据格式测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 测试心跳消息
+        function testHeartbeat() {
+            log('🧪 测试心跳消息...', 'info');
+
+            try {
+                const heartbeat = {
+                    type: 'heartbeat',
+                    timestamp: Date.now(),
+                    request_id: generateRequestId()
+                };
+
+                log('心跳消息:', 'info');
+                log(JSON.stringify(heartbeat, null, 2), 'info');
+
+                // 转换为二进制格式
+                const jsonString = JSON.stringify(heartbeat);
+                const encoder = new TextEncoder();
+                const binaryData = encoder.encode(jsonString);
+
+                // 创建消息头
+                const header = new ArrayBuffer(4);
+                const headerView = new DataView(header);
+                headerView.setUint8(0, 0x01); // 协议版本
+                headerView.setUint8(1, 0x04); // 消息类型: 心跳
+                headerView.setUint8(2, 0x01); // 序列化方法: JSON
+                headerView.setUint8(3, 0x00); // 保留位
+
+                const fullMessage = new Uint8Array(4 + binaryData.length);
+                fullMessage.set(new Uint8Array(header), 0);
+                fullMessage.set(binaryData, 4);
+
+                log(`心跳消息大小: ${fullMessage.length} 字节`, 'info');
+
+                log('✅ 心跳消息测试通过', 'success');
+            } catch (error) {
+                log(`❌ 心跳消息测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 测试停止请求
+        function testStopRequest() {
+            log('🧪 测试停止请求...', 'info');
+
+            try {
+                const stopRequest = {
+                    type: 'stop_request',
+                    request_id: generateRequestId(),
+                    timestamp: Date.now()
+                };
+
+                log('停止请求:', 'info');
+                log(JSON.stringify(stopRequest, null, 2), 'info');
+
+                // 转换为二进制格式
+                const jsonString = JSON.stringify(stopRequest);
+                const encoder = new TextEncoder();
+                const binaryData = encoder.encode(jsonString);
+
+                // 创建消息头
+                const header = new ArrayBuffer(4);
+                const headerView = new DataView(header);
+                headerView.setUint8(0, 0x01); // 协议版本
+                headerView.setUint8(1, 0x03); // 消息类型: 停止请求
+                headerView.setUint8(2, 0x01); // 序列化方法: JSON
+                headerView.setUint8(3, 0x00); // 保留位
+
+                const fullMessage = new Uint8Array(4 + binaryData.length);
+                fullMessage.set(new Uint8Array(header), 0);
+                fullMessage.set(binaryData, 4);
+
+                log(`停止请求大小: ${fullMessage.length} 字节`, 'info');
+
+                log('✅ 停止请求测试通过', 'success');
+            } catch (error) {
+                log(`❌ 停止请求测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 页面加载初始化
+        window.onload = function() {
+            setTimeout(() => {
+                log('🚀 二进制协议测试工具已加载', 'info');
+                log('💡 提示：依次点击测试按钮验证协议实现', 'info');
+            }, 100);
+        };
+    </script>
+</body>
+</html>

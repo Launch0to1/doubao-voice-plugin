@@ -31,17 +31,27 @@
 
 **主要接口地址：**
 ```
-主接口: wss://openspeech.bytedance.com/api/v3/sauc/bigmodel
+主接口: wss://openspeech.bytedance.com/api/v3/sauc/bigmodel (新双向流式，推荐)
 备用接口: wss://openspeech.bytedance.com/ws/v1/stream
 历史接口: wss://openspeech.bytedance.com/api/v2/sauc/bigmodel
          wss://openspeech.bytedance.com/api/v1/sauc/bigmodel
+```
+
+**🔥 重要更新：二进制WebSocket协议**
+
+火山引擎已升级为二进制WebSocket协议，包含4字节消息头：
+```
+字节0: 协议版本 (0x01)
+字节1: 消息类型 (0x01=FullClientRequest, 0x02=音频数据, 0x03=停止请求, 0x04=心跳)
+字节2: 序列化方法 (0x00=原始数据, 0x01=JSON)
+字节3: 保留位 (0x00)
 ```
 
 **认证方式：**
 
 **方式一：APP ID + Access Token（推荐）**
 ```
-认证参数格式：
+认证参数格式（URL参数）：
 app_id={YOUR_APP_ID}&access_token={YOUR_ACCESS_TOKEN}&timestamp={TIMESTAMP}&nonce={NONCE}
 
 示例：
@@ -76,6 +86,14 @@ access_key_id=AK123456789&access_key_secret=SK987654321&timestamp=1699123456789&
 容器格式：WebM
 数据分片：每250ms发送一次
 ```
+
+**消息类型说明：**
+| 消息类型 | 值 | 说明 |
+|----------|-----|------|
+| FullClientRequest | 0x01 | 初始连接请求 |
+| 音频数据 | 0x02 | 音频流数据 |
+| 停止请求 | 0x03 | 结束识别请求 |
+| 心跳 | 0x04 | 保持连接心跳 |
 
 **响应数据格式：**
 ```json

@@ -9,18 +9,45 @@
   let ws = null;
   let currentInput = null;
   let micButton = null;
+  let sessionId = null; // 新增：会话ID
+  let heartbeatInterval = null; // 新增：心跳定时器
 
   // 语音识别模型配置
   const MODEL_CONFIGS = {
     volcano: {
       name: '火山引擎语音识别',
       defaultUrl: 'wss://openspeech.bytedance.com/ws/v1/stream',
-      authType: 'access_key'
+      authType: 'access_key',
+      // 新增：支持最新的双向流式接口
+      altUrls: [
+        'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel',
+        'wss://openspeech.bytedance.com/api/v2/sauc/bigmodel',
+        'wss://openspeech.bytedance.com/api/v1/sauc/bigmodel'
+      ],
+      // 新增：协议配置
+      protocol: {
+        // 发送音频数据的格式
+        audioFormat: 'opus',
+        sampleRate: 16000,
+        channelCount: 1,
+        // 消息类型
+        messageTypes: {
+          START_REQUEST: 'start_request',
+          AUDIO_DATA: 'audio_data',
+          STOP_REQUEST: 'stop_request',
+          HEARTBEAT: 'heartbeat'
+        }
+      }
     },
     custom: {
       name: '自定义模型接口',
       defaultUrl: '',
-      authType: 'custom'
+      authType: 'custom',
+      protocol: {
+        audioFormat: 'opus',
+        sampleRate: 16000,
+        channelCount: 1
+      }
     }
   };
 
@@ -142,7 +169,8 @@
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(event.data);
+          // 使用新的二进制协议发送音频数据
+          sendAudioData(event.data);
         }
       };
 
@@ -191,113 +219,68 @@
     }
   }
 
-  // 连接WebSocket
+  // 连接WebSocket - 支持新的二进制协议
   async function connectWebSocket(config) {
     return new Promise(async (resolve, reject) => {
       try {
-        // 生成认证参数
-        const authParams = generateAuthParams(config);
-        let wsUrl = config.modelType === 'custom' ?
-          `${config.customApiUrl}?${authParams}` :
-          `${config.customApiUrl || MODEL_CONFIGS.volcano.defaultUrl}?${authParams}`;
+        // 根据文档使用新的接口地址和认证方式
+        const wsUrl = config.modelType === 'custom' ?
+          config.customApiUrl :
+          'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel';
 
         console.log('=== WebSocket连接调试信息 ===');
         console.log('模型类型:', config.modelType);
         console.log('模型名称:', config.modelName);
-        console.log('自定义接口地址:', config.customApiUrl);
+        console.log('WebSocket URL:', wsUrl);
         console.log('APP ID:', config.appId);
         console.log('Access Token:', config.accessToken ? '已设置' : '未设置');
-        console.log('认证参数:', authParams);
-        console.log('完整WebSocket URL:', wsUrl);
         console.log('===========================');
 
-        // 尝试连接，如果失败可以尝试简化连接
-        let retryCount = 0;
-        const maxRetries = 2;
+        // 创建WebSocket连接，使用HTTP header认证
+        // 注意：浏览器WebSocket API不支持自定义headers，需要使用URL参数认证
+        const authParams = generateAuthParams(config);
+        const fullUrl = `${wsUrl}?${authParams}`;
 
-        async function attemptConnection(url, useAuth = true) {
-          return new Promise((resolveAttempt, rejectAttempt) => {
-            console.log(`尝试连接 (${retryCount + 1}/${maxRetries}): ${url}`);
+        console.log('完整WebSocket URL:', fullUrl);
 
-            try {
-              ws = new WebSocket(url);
+        ws = new WebSocket(fullUrl);
 
-              // 设置连接超时
-              const connectionTimeout = setTimeout(() => {
-                if (ws.readyState !== WebSocket.OPEN) {
-                  ws.close();
-                  const timeoutError = new Error('WebSocket连接超时（10秒）');
-                  console.error('连接超时:', timeoutError);
-                  rejectAttempt(timeoutError);
-                }
-              }, 10000); // 10秒超时
-
-              ws.onopen = () => {
-                clearTimeout(connectionTimeout);
-                console.log('WebSocket连接成功');
-                resolveAttempt();
-              };
-
-              ws.onmessage = (event) => {
-                handleRecognitionResult(event.data);
-              };
-
-              ws.onerror = (error) => {
-                clearTimeout(connectionTimeout);
-                console.error(`连接失败 (${url}):`, error);
-                rejectAttempt(error);
-              };
-
-              ws.onclose = (event) => {
-                console.log('WebSocket连接关闭, 代码:', event.code, '原因:', event.reason);
-              };
-
-            } catch (error) {
-              rejectAttempt(error);
-            }
-          });
-        }
-
-        // 尝试主要连接
-        try {
-          await attemptConnection(wsUrl);
-          resolve();
-        } catch (error) {
-          console.log('主要连接失败，尝试备用方案...');
-
-          // 如果带参数失败，尝试不带参数的基础连接
-          if (authParams && retryCount < maxRetries) {
-            retryCount++;
-            try {
-              const baseUrl = config.modelType === 'custom' ?
-                config.customApiUrl :
-                (config.customApiUrl || MODEL_CONFIGS.volcano.defaultUrl);
-              console.log('尝试基础连接（不带参数）:', baseUrl);
-              await attemptConnection(baseUrl, false);
-              resolve();
-            } catch (baseError) {
-              console.error('基础连接也失败:', baseError);
-
-              // 更友好的错误提示
-              let errorMessage = 'WebSocket连接失败';
-              if (error.target && error.target.url) {
-                errorMessage += `\nURL: ${error.target.url}`;
-              }
-
-              alert(`语音识别连接失败，请检查：\n1. API配置是否正确\n2. 网络连接是否正常\n3. 接口地址是否可访问\n4. 认证参数是否正确\n\n错误信息：${errorMessage}\n\n可以尝试使用调试工具测试连接：打开 debug_websocket.html`);
-              reject(error);
-            }
-          } else {
-            // 更友好的错误提示
-            let errorMessage = 'WebSocket连接失败';
-            if (error.target && error.target.url) {
-              errorMessage += `\nURL: ${error.target.url}`;
-            }
-
-            alert(`语音识别连接失败，请检查：\n1. API配置是否正确\n2. 网络连接是否正常\n3. 接口地址是否可访问\n\n错误信息：${errorMessage}\n\n可以尝试使用调试工具测试连接：打开 debug_websocket.html`);
-            reject(error);
+        // 设置连接超时
+        const connectionTimeout = setTimeout(() => {
+          if (ws.readyState !== WebSocket.OPEN) {
+            ws.close();
+            const timeoutError = new Error('WebSocket连接超时（10秒）');
+            console.error('连接超时:', timeoutError);
+            reject(timeoutError);
           }
-        }
+        }, 10000);
+
+        ws.onopen = () => {
+          clearTimeout(connectionTimeout);
+          console.log('WebSocket连接成功');
+
+          // 发送初始的full client request
+          if (config.modelType === 'volcano') {
+            sendFullClientRequest(config);
+          }
+
+          resolve();
+        };
+
+        ws.onmessage = (event) => {
+          handleBinaryMessage(event.data);
+        };
+
+        ws.onerror = (error) => {
+          clearTimeout(connectionTimeout);
+          console.error('WebSocket连接错误:', error);
+          reject(error);
+        };
+
+        ws.onclose = (event) => {
+          console.log('WebSocket连接关闭, 代码:', event.code, '原因:', event.reason);
+          stopHeartbeat();
+        };
 
       } catch (error) {
         reject(error);
@@ -347,7 +330,365 @@
     }
   }
 
-  // 处理识别结果
+  // 新增：发送完整的客户端请求（符合火山引擎新协议）
+  function sendFullClientRequest(config) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    // 构建符合火山引擎新协议的FullClientRequest
+    const fullClientRequest = {
+      app_id: config.appId,
+      user_id: 'chrome_extension_user',
+      request_id: generateRequestId(),
+      audio: {
+        format: 'opus',
+        rate: 16000,
+        bits: 16,
+        channel: 1,
+        language: 'zh-CN'
+      },
+      request: {
+        core_type: 'cn.sauc.sauc-streaming.v1',
+        ref_text: '',
+        res_text_format: 0,
+        add_punc: true,
+        vad_on: true,
+        vad_pause: 500,
+        vad_timeout: 2000,
+        max_silence: 2000,
+        max_sentence_silence: 2000,
+        result_type: 'single',
+        enable_chunk: true,
+        chunk_interval: 250,
+        enable_long_speech: true,
+        enable_intermediate_result: true,
+        enable_punctuation: true,
+        enable_word_info: false,
+        enable_semantic_smoothing: true,
+        vocabulary_id: '',
+        vocabulary_filter: 'default'
+      },
+      user: {
+        uid: 'chrome_extension_user',
+        device_id: 'chrome_extension'
+      }
+    };
+
+    console.log('发送FullClientRequest:', fullClientRequest);
+
+    // 将JSON转换为二进制格式发送
+    try {
+      const jsonString = JSON.stringify(fullClientRequest);
+      const encoder = new TextEncoder();
+      const binaryData = encoder.encode(jsonString);
+
+      // 创建二进制消息头（4字节）
+      const header = new ArrayBuffer(4);
+      const headerView = new DataView(header);
+
+      // 协议版本 (1字节)
+      headerView.setUint8(0, 0x01);
+      // 消息类型 (1字节) - 0x01 表示 FullClientRequest
+      headerView.setUint8(1, 0x01);
+      // 序列化方法 (1字节) - 0x01 表示 JSON
+      headerView.setUint8(2, 0x01);
+      // 保留位 (1字节)
+      headerView.setUint8(3, 0x00);
+
+      // 组合头部和消息体
+      const fullMessage = new Uint8Array(4 + binaryData.length);
+      fullMessage.set(new Uint8Array(header), 0);
+      fullMessage.set(binaryData, 4);
+
+      ws.send(fullMessage);
+      console.log('FullClientRequest已发送（二进制格式）');
+
+      // 启动心跳机制
+      startHeartbeat(config);
+
+    } catch (error) {
+      console.error('发送FullClientRequest失败:', error);
+    }
+  }
+
+  // 新增：发送开始识别请求
+  function sendStartRequest(config) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const startRequest = {
+      type: 'start_request',
+      request_id: generateRequestId(),
+      timestamp: Date.now(),
+      config: {
+        audio: {
+          format: config.protocol?.audioFormat || 'opus',
+          sample_rate: config.protocol?.sampleRate || 16000,
+          channel_count: config.protocol?.channelCount || 1,
+          bits_per_sample: 16
+        },
+        // 新增：语音识别配置
+        asr: {
+          enable_intermediate_result: true,
+          enable_punctuation: true,
+          enable_word_info: false,
+          enable_semantic_smoothing: true,
+          max_sentence_silence: 2000, // 2秒静音检测
+          vocabulary_id: '', // 可选：自定义词表
+          vocabulary_filter: 'default' // 词汇过滤策略
+        },
+        // 新增：业务配置
+        business: {
+          sub_service_type: 'realtime',
+          enable_chunk: true,
+          chunk_interval: 250, // 250ms分片
+          enable_long_speech: true,
+          enable_vad: true, // 语音活动检测
+          vad_silence_time: 500 // 500ms静音检测
+        }
+      }
+    };
+
+    console.log('发送开始识别请求:', startRequest);
+    ws.send(JSON.stringify(startRequest));
+
+    // 启动心跳机制
+    startHeartbeat(config);
+  }
+
+  // 新增：生成请求ID
+  function generateRequestId() {
+    return 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  // 新增：启动心跳机制（二进制格式）
+  function startHeartbeat(config) {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+    }
+
+    heartbeatInterval = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          const heartbeat = {
+            type: 'heartbeat',
+            timestamp: Date.now(),
+            request_id: generateRequestId()
+          };
+
+          console.log('发送心跳:', heartbeat);
+
+          // 将JSON转换为二进制格式发送
+          const jsonString = JSON.stringify(heartbeat);
+          const encoder = new TextEncoder();
+          const binaryData = encoder.encode(jsonString);
+
+          // 创建二进制消息头（4字节）
+          const header = new ArrayBuffer(4);
+          const headerView = new DataView(header);
+
+          // 协议版本 (1字节)
+          headerView.setUint8(0, 0x01);
+          // 消息类型 (1字节) - 0x04 表示心跳
+          headerView.setUint8(1, 0x04);
+          // 序列化方法 (1字节) - 0x01 表示 JSON
+          headerView.setUint8(2, 0x01);
+          // 保留位 (1字节)
+          headerView.setUint8(3, 0x00);
+
+          // 组合头部和消息体
+          const fullMessage = new Uint8Array(4 + binaryData.length);
+          fullMessage.set(new Uint8Array(header), 0);
+          fullMessage.set(binaryData, 4);
+
+          ws.send(fullMessage);
+          console.log('心跳已发送（二进制格式）');
+
+        } catch (error) {
+          console.error('发送心跳失败:', error);
+        }
+      }
+    }, 30000); // 每30秒发送一次心跳
+  }
+
+  // 新增：发送音频数据（二进制格式）
+  function sendAudioData(audioBlob) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    audioBlob.arrayBuffer().then(arrayBuffer => {
+      try {
+        // 创建二进制消息头（4字节）
+        const header = new ArrayBuffer(4);
+        const headerView = new DataView(header);
+
+        // 协议版本 (1字节)
+        headerView.setUint8(0, 0x01);
+        // 消息类型 (1字节) - 0x02 表示音频数据
+        headerView.setUint8(1, 0x02);
+        // 序列化方法 (1字节) - 0x00 表示原始音频数据
+        headerView.setUint8(2, 0x00);
+        // 保留位 (1字节)
+        headerView.setUint8(3, 0x00);
+
+        // 组合头部和音频数据
+        const fullMessage = new Uint8Array(4 + arrayBuffer.byteLength);
+        fullMessage.set(new Uint8Array(header), 0);
+        fullMessage.set(new Uint8Array(arrayBuffer), 4);
+
+        ws.send(fullMessage);
+        console.log('音频数据已发送（二进制格式）, 大小:', fullMessage.length, '字节');
+
+      } catch (error) {
+        console.error('发送音频数据失败:', error);
+      }
+    }).catch(error => {
+      console.error('转换音频数据失败:', error);
+    });
+  }
+
+  // 新增：发送停止识别请求（二进制格式）
+  function sendStopRequest() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    try {
+      // 创建停止请求消息
+      const stopRequest = {
+        type: 'stop_request',
+        request_id: generateRequestId(),
+        timestamp: Date.now()
+      };
+
+      console.log('发送停止识别请求:', stopRequest);
+
+      // 将JSON转换为二进制格式发送
+      const jsonString = JSON.stringify(stopRequest);
+      const encoder = new TextEncoder();
+      const binaryData = encoder.encode(jsonString);
+
+      // 创建二进制消息头（4字节）
+      const header = new ArrayBuffer(4);
+      const headerView = new DataView(header);
+
+      // 协议版本 (1字节)
+      headerView.setUint8(0, 0x01);
+      // 消息类型 (1字节) - 0x03 表示停止请求
+      headerView.setUint8(1, 0x03);
+      // 序列化方法 (1字节) - 0x01 表示 JSON
+      headerView.setUint8(2, 0x01);
+      // 保留位 (1字节)
+      headerView.setUint8(3, 0x00);
+
+      // 组合头部和消息体
+      const fullMessage = new Uint8Array(4 + binaryData.length);
+      fullMessage.set(new Uint8Array(header), 0);
+      fullMessage.set(binaryData, 4);
+
+      ws.send(fullMessage);
+      console.log('停止请求已发送（二进制格式）');
+
+    } catch (error) {
+      console.error('发送停止请求失败:', error);
+    }
+  }
+
+  // 处理二进制消息（火山引擎新协议）
+  function handleBinaryMessage(data) {
+    try {
+      if (data instanceof Blob) {
+        // 处理Blob数据
+        const reader = new FileReader();
+        reader.onload = function() {
+          const arrayBuffer = reader.result;
+          parseBinaryMessage(arrayBuffer);
+        };
+        reader.readAsArrayBuffer(data);
+      } else if (data instanceof ArrayBuffer) {
+        // 直接处理ArrayBuffer数据
+        parseBinaryMessage(data);
+      } else if (typeof data === 'string') {
+        // 处理字符串数据（向后兼容）
+        handleRecognitionResult(data);
+      } else {
+        console.warn('收到未知类型的消息:', typeof data);
+      }
+    } catch (error) {
+      console.error('处理二进制消息失败:', error);
+    }
+  }
+
+  // 解析二进制消息
+  function parseBinaryMessage(arrayBuffer) {
+    try {
+      const dataView = new DataView(arrayBuffer);
+
+      // 检查数据长度是否足够
+      if (dataView.byteLength < 4) {
+        console.warn('消息长度不足，无法解析头部');
+        return;
+      }
+
+      // 解析消息头（4字节）
+      const protocolVersion = dataView.getUint8(0);
+      const messageType = dataView.getUint8(1);
+      const serializationMethod = dataView.getUint8(2);
+      const reserved = dataView.getUint8(3);
+
+      console.log('二进制消息头:', {
+        protocolVersion,
+        messageType,
+        serializationMethod,
+        reserved
+      });
+
+      // 获取消息体
+      const bodyData = new Uint8Array(arrayBuffer, 4);
+
+      // 根据序列化方法解析消息体
+      if (serializationMethod === 0x01) { // JSON格式
+        const decoder = new TextDecoder();
+        const jsonString = decoder.decode(bodyData);
+        console.log('消息体JSON:', jsonString);
+
+        try {
+          const message = JSON.parse(jsonString);
+          handleServerMessage(message);
+        } catch (e) {
+          console.error('解析JSON消息体失败:', e);
+        }
+      } else {
+        console.warn('不支持的序列化方法:', serializationMethod);
+      }
+
+    } catch (error) {
+      console.error('解析二进制消息失败:', error);
+    }
+  }
+
+  // 处理服务器消息
+  function handleServerMessage(message) {
+    if (!message) return;
+
+    console.log('处理服务器消息:', message);
+
+    // 根据消息类型处理
+    if (message.type === 'final_result' || message.type === 'result') {
+      if (message.text) {
+        insertText(message.text);
+      }
+    } else if (message.type === 'partial_result') {
+      // 中间结果，可以选择显示或忽略
+      console.log('中间识别结果:', message.text);
+    } else if (message.type === 'error') {
+      console.error('服务器错误:', message.error);
+      if (message.error && message.error.message) {
+        alert(`语音识别错误: ${message.error.message}`);
+      }
+    } else if (message.type === 'heartbeat_response') {
+      console.log('收到心跳响应');
+    } else {
+      console.log('收到其他类型的消息:', message);
+    }
+  }
+
+  // 处理识别结果（向后兼容）
   function handleRecognitionResult(data) {
     try {
       const result = JSON.parse(data);

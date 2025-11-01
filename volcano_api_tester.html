@@ -99,6 +99,13 @@
             padding: 15px;
             margin-top: 15px;
         }
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+        }
         .code-block {
             background: #f4f4f4;
             border: 1px solid #ddd;
@@ -147,8 +154,8 @@
             <div class="form-group">
                 <label>接口地址:</label>
                 <select id="apiEndpoint">
-                    <option value="wss://openspeech.bytedance.com/api/v3/sauc/bigmodel">wss://openspeech.bytedance.com/api/v3/sauc/bigmodel</option>
-                    <option value="wss://openspeech.bytedance.com/ws/v1/stream">wss://openspeech.bytedance.com/ws/v1/stream</option>
+                    <option value="wss://openspeech.bytedance.com/api/v3/sauc/bigmodel">wss://openspeech.bytedance.com/api/v3/sauc/bigmodel (新双向流式)</option>
+                    <option value="wss://openspeech.bytedance.com/ws/v1/stream">wss://openspeech.bytedance.com/ws/v1/stream (标准流式)</option>
                     <option value="wss://openspeech.bytedance.com/api/v2/sauc/bigmodel">wss://openspeech.bytedance.com/api/v2/sauc/bigmodel</option>
                     <option value="wss://openspeech.bytedance.com/api/v1/sauc/bigmodel">wss://openspeech.bytedance.com/api/v1/sauc/bigmodel</option>
                     <option value="custom">自定义地址</option>
@@ -396,6 +403,7 @@
                 analysisHtml += '<li><strong>接口地址错误:</strong> 可能使用了错误的API端点</li>';
                 analysisHtml += '<li><strong>参数格式错误:</strong> 认证参数格式可能不符合要求</li>';
                 analysisHtml += '<li><strong>服务未启用:</strong> 语音识别服务可能未在控制台启用</li>';
+                analysisHtml += '<li><strong>新协议要求:</strong> 火山引擎已升级为二进制WebSocket协议</li>';
             } else if (errorType === 'timeout') {
                 analysisHtml += '<li><strong>网络超时:</strong> 连接请求超时，可能是网络问题</li>';
                 analysisHtml += '<li><strong>服务器无响应:</strong> 服务器可能没有响应WebSocket连接</li>';
@@ -412,8 +420,19 @@
             analysisHtml += '<li>尝试使用不同的接口地址</li>';
             analysisHtml += '<li>检查火山引擎控制台中的服务状态</li>';
             analysisHtml += '<li>确认语音识别服务已启用</li>';
+            analysisHtml += '<li>确保使用最新的二进制WebSocket协议</li>';
             analysisHtml += '<li>联系火山引擎技术支持确认接口状态</li>';
             analysisHtml += '</ul>';
+
+            analysisHtml += '<h4>📚 新协议说明:</h4>';
+            analysisHtml += '<div class="info-box">';
+            analysisHtml += '<p>火山引擎已升级为二进制WebSocket协议，包含：</p>';
+            analysisHtml += '<ul>';
+            analysisHtml += '<li>4字节消息头（协议版本、消息类型、序列化方法）</li>';
+            analysisHtml += '<li>支持FullClientRequest、音频数据、停止请求等消息类型</li>';
+            analysisHtml += '<li>JSON格式的消息体序列化</li>';
+            analysisHtml += '</ul>';
+            analysisHtml += '</div>';
 
             analysisDiv.innerHTML = analysisHtml;
         }
