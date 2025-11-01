@@ -119,8 +119,11 @@
   // 开始录音
   async function startRecording() {
     try {
+      console.log('=== 开始录音流程 ===');
+
       // 获取API配置
       const config = await getApiConfig();
+      console.log('获取API配置完成:', config);
 
       // 检查是否有可用的配置
       const hasValidConfig = config.modelType === 'custom' ?
@@ -131,6 +134,8 @@
         alert('请先配置API信息：点击扩展图标进行配置');
         return;
       }
+
+      console.log('配置验证通过，准备获取麦克风权限');
 
       // 获取麦克风权限（Manifest V3中需要通过用户交互触发）
       try {
@@ -143,7 +148,9 @@
             noiseSuppression: true
           }
         });
+        console.log('麦克风权限获取成功');
       } catch (mediaError) {
+        console.error('麦克风权限获取失败:', mediaError);
         if (mediaError.name === 'NotAllowedError') {
           alert('需要麦克风权限才能使用语音输入功能。请在浏览器设置中允许麦克风访问。');
           return;
@@ -158,9 +165,12 @@
       // 更新UI状态
       isRecording = true;
       updateMicButtonUI(true);
+      console.log('UI状态已更新');
 
       // 连接WebSocket
+      console.log('开始连接WebSocket...');
       await connectWebSocket(config);
+      console.log('WebSocket连接成功');
 
       // 开始录音
       mediaRecorder = new MediaRecorder(audioStream, {
@@ -175,10 +185,16 @@
       };
 
       mediaRecorder.start(250); // 每250ms发送一次数据
+      console.log('录音已开始，每250ms发送数据');
 
     } catch (error) {
       console.error('开始录音失败:', error);
-      alert('无法访问麦克风，请检查权限设置');
+      console.error('错误详情:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
+      alert(`开始录音失败: ${error.message}`);
       stopRecording();
     }
   }
@@ -223,41 +239,117 @@
   async function connectWebSocket(config) {
     return new Promise(async (resolve, reject) => {
       try {
-        // 根据文档使用新的接口地址和认证方式
-        const wsUrl = config.modelType === 'custom' ?
-          config.customApiUrl :
-          'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel';
+        // 定义多个可能的端点，按优先级尝试
+        const endpoints = [
+          'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel',
+          'wss://openspeech.bytedance.com/ws/v1/stream',
+          'wss://openspeech.bytedance.com/api/v2/sauc/bigmodel',
+          'wss://openspeech.bytedance.com/api/v1/sauc/bigmodel'
+        ];
+
+        let wsUrl;
+        let endpointsToTry = [];
+
+        if (config.modelType === 'custom') {
+          wsUrl = config.customApiUrl;
+          endpointsToTry = [wsUrl];
+        } else {
+          // 如果配置了自定义URL，优先使用；否则使用默认端点列表
+          if (config.customApiUrl && config.customApiUrl.trim() !== '') {
+            endpointsToTry = [config.customApiUrl, ...endpoints];
+          } else {
+            endpointsToTry = endpoints;
+          }
+        }
 
         console.log('=== WebSocket连接调试信息 ===');
         console.log('模型类型:', config.modelType);
         console.log('模型名称:', config.modelName);
-        console.log('WebSocket URL:', wsUrl);
+        console.log('尝试端点列表:', endpointsToTry);
         console.log('APP ID:', config.appId);
         console.log('Access Token:', config.accessToken ? '已设置' : '未设置');
         console.log('===========================');
 
+        // 尝试连接不同的端点
+        let lastError = null;
+        for (let i = 0; i < endpointsToTry.length; i++) {
+          const currentUrl = endpointsToTry[i];
+          console.log(`\n尝试连接端点 ${i + 1}/${endpointsToTry.length}: ${currentUrl}`);
+
+          try {
+            await tryConnectWebSocket(currentUrl, config);
+            console.log(`✅ 成功连接到端点: ${currentUrl}`);
+            resolve();
+            return;
+          } catch (error) {
+            console.error(`❌ 端点 ${currentUrl} 连接失败:`, error.message);
+            lastError = error;
+
+            // 如果不是最后一个端点，等待2秒后重试
+            if (i < endpointsToTry.length - 1) {
+              console.log('等待2秒后尝试下一个端点...');
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          }
+        }
+
+        // 所有端点都失败
+        reject(new Error(`所有端点连接失败，最后一个错误: ${lastError?.message || '未知错误'}`));
+
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  // 尝试连接单个WebSocket端点
+  async function tryConnectWebSocket(wsUrl, config) {
+    return new Promise((resolve, reject) => {
+      try {
         // 创建WebSocket连接，使用HTTP header认证
         // 注意：浏览器WebSocket API不支持自定义headers，需要使用URL参数认证
         const authParams = generateAuthParams(config);
         const fullUrl = `${wsUrl}?${authParams}`;
 
-        console.log('完整WebSocket URL:', fullUrl);
+        console.log(`尝试连接: ${fullUrl}`);
+        console.log(`URL长度: ${fullUrl.length} 字符`);
 
-        ws = new WebSocket(fullUrl);
+        // 验证URL格式
+        try {
+          const urlTest = new URL(fullUrl);
+          console.log('URL格式验证通过:', urlTest.href);
+        } catch (urlError) {
+          console.error('URL格式错误:', urlError.message);
+          reject(new Error(`WebSocket URL格式错误: ${urlError.message}`));
+          return;
+        }
+
+        let wsInstance;
+        try {
+          wsInstance = new WebSocket(fullUrl);
+          console.log('WebSocket实例创建成功');
+        } catch (wsError) {
+          console.error('WebSocket创建失败:', wsError.message);
+          reject(new Error(`WebSocket创建失败: ${wsError.message}`));
+          return;
+        }
 
         // 设置连接超时
         const connectionTimeout = setTimeout(() => {
-          if (ws.readyState !== WebSocket.OPEN) {
-            ws.close();
+          if (wsInstance.readyState !== WebSocket.OPEN) {
+            wsInstance.close();
             const timeoutError = new Error('WebSocket连接超时（10秒）');
             console.error('连接超时:', timeoutError);
             reject(timeoutError);
           }
         }, 10000);
 
-        ws.onopen = () => {
+        wsInstance.onopen = () => {
           clearTimeout(connectionTimeout);
           console.log('WebSocket连接成功');
+
+          // 将全局ws变量设置为当前成功的连接
+          ws = wsInstance;
 
           // 发送初始的full client request
           if (config.modelType === 'volcano') {
@@ -267,19 +359,63 @@
           resolve();
         };
 
-        ws.onmessage = (event) => {
+        wsInstance.onmessage = (event) => {
           handleBinaryMessage(event.data);
         };
 
-        ws.onerror = (error) => {
+        wsInstance.onerror = (error) => {
           clearTimeout(connectionTimeout);
           console.error('WebSocket连接错误:', error);
-          reject(error);
+          console.error('错误详情:', {
+            type: error.type,
+            target: error.target,
+            currentTarget: error.currentTarget,
+            eventPhase: error.eventPhase,
+            timeStamp: error.timeStamp
+          });
+          reject(new Error(`WebSocket连接失败: ${error.type || '未知错误'}`));
         };
 
-        ws.onclose = (event) => {
+        wsInstance.onclose = (event) => {
           console.log('WebSocket连接关闭, 代码:', event.code, '原因:', event.reason);
-          stopHeartbeat();
+          console.log('连接关闭详情:', {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean,
+            timeStamp: event.timeStamp
+          });
+
+          // 分析关闭代码
+          if (event.code === 1006) {
+            console.error('🚨 连接被异常关闭 (代码1006) - 详细分析:');
+            console.error('可能原因1: 认证失败');
+            console.error('  - APP ID无效或不存在');
+            console.error('  - Access Token无效、过期或权限不足');
+            console.error('  - 认证参数格式错误');
+            console.error('可能原因2: 网络连接问题');
+            console.error('  - 网络不稳定或中断');
+            console.error('  - 防火墙阻止了WebSocket连接');
+            console.error('  - DNS解析失败');
+            console.error('可能原因3: 服务器端问题');
+            console.error('  - 服务器拒绝了连接请求');
+            console.error('  - 服务器负载过高');
+            console.error('  - 服务未启用或已下线');
+            console.error('可能原因4: 协议或格式问题');
+            console.error('  - WebSocket协议版本不兼容');
+            console.error('  - 二进制消息格式错误');
+            console.error('  - 请求头或参数格式不符合要求');
+            console.error('建议排查步骤:');
+            console.error('1. 验证APP ID和Access Token是否正确');
+            console.error('2. 检查火山引擎控制台中的服务状态');
+            console.error('3. 尝试使用其他端点地址');
+            console.error('4. 检查网络连接和防火墙设置');
+            console.error('5. 联系火山引擎技术支持确认服务状态');
+          }
+
+          // 只有在当前连接是这个实例时才停止心跳
+          if (ws === wsInstance) {
+            stopHeartbeat();
+          }
         };
 
       } catch (error) {
@@ -457,6 +593,15 @@
   // 新增：生成请求ID
   function generateRequestId() {
     return 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  // 新增：停止心跳机制
+  function stopHeartbeat() {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+      console.log('心跳机制已停止');
+    }
   }
 
   // 新增：启动心跳机制（二进制格式）
